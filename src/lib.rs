@@ -46,3 +46,12 @@ pub mod ec512 {
     crate::theta::theta::define_theta_structure! {}
     crate::schemes::klapoti::define_klapoti! {}
 }
+
+pub mod ec768 {
+    use crate::util::Big;
+    pub type Fp = crate::fields::Fp768::Fp;
+    pub type Fq = crate::fields::Fp768Ext::Fp2;
+    crate::ec::eccore::define_ec_core! {}
+    crate::theta::theta::define_theta_structure! {}
+    crate::schemes::klapoti::define_klapoti! {}
+}
