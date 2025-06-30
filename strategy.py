@@ -115,7 +115,7 @@ def optimised_strategy(n, M, S, I):
 # Use the middle time values from msi.rs output:
 
 # data_big = [1733, 2937, 2355, 85162]
-data_big = [1733, 2937, 2355, 85162]
+data_big = [1638, 2782, 1967, 68776]
 strat = optimised_strategy(*data_big)
 print("big:")
 print(strat)

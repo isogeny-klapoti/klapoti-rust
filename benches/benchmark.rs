@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use klapoti::schemes::klapoti_test::{params32, params64, params128, params512};
+use klapoti::schemes::klapoti_test::{params64, params128, params512};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     // c.bench_function("params 32", |b| b.iter(|| params32()));
