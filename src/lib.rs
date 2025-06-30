@@ -38,10 +38,10 @@ pub mod ec509 {
     crate::schemes::klapoti::define_klapoti! {}
 }
 
-pub mod ec1757 {
+pub mod ec512 {
     use crate::util::Big;
-    pub type Fp = crate::fields::Fp1757::Fp;
-    pub type Fq = crate::fields::Fp1757Ext::Fp2;
+    pub type Fp = crate::fields::Fp512::Fp;
+    pub type Fq = crate::fields::Fp512Ext::Fp2;
     crate::ec::eccore::define_ec_core! {}
     crate::theta::theta::define_theta_structure! {}
     crate::schemes::klapoti::define_klapoti! {}

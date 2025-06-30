@@ -114,12 +114,14 @@ def optimised_strategy(n, M, S, I):
 # where the cost is the time in ns for one operation
 # Use the middle time values from msi.rs output:
 
+# data_big = [1733, 2937, 2355, 85162]
 data_big = [1733, 2937, 2355, 85162]
 strat = optimised_strategy(*data_big)
 print("big:")
 print(strat)
 print("")
 
+"""
 data_small = [104, 26, 17, 1533]
 strat = optimised_strategy(*data_small)
 print("small:")
@@ -137,4 +139,4 @@ strat = optimised_strategy(*data_middle)
 print("middle:")
 print(strat)
 print("")
-
+"""
