@@ -259,7 +259,7 @@ macro_rules! define_klapoti {
                     &strategy,
                 );
 
-                // println!("2: {:?}", second_part.elapsed());
+                println!("2: {:?}", second_part.elapsed());
 
                 PubKey::new(product, points[0], points[1])
             }
