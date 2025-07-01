@@ -12,7 +12,7 @@ import functools
 import sys
 
 # For the long chain, we need a lot of recursion!
-sys.setrecursionlimit(10000)
+sys.setrecursionlimit(30000)
 
 # fmt: off
 def optimised_strategy(n, M, S, I):
@@ -128,7 +128,7 @@ def optimised_strategy(n, M, S, I):
 # data = [1638, 2782, 1967, 68776]
 
 # 768
-data = [2407, 7892, 4766, 186800]
+# data = [2407, 7892, 4766, 186800]
 
 # 1024
 # data = [3179, 13719, 7222, 361090]
@@ -137,7 +137,7 @@ data = [2407, 7892, 4766, 186800]
 # data = [4722, 31497, 15469, 787660]
 
 # 2048
-# data = [, , , ]
+data = [6219, 58426, 27475, 1441700]
 
 strat = optimised_strategy(*data)
 print("")
