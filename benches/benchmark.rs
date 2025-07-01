@@ -7,9 +7,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // c.bench_function("params 256", |b| b.iter(|| params256()));
     // c.bench_function("params 512", |b| b.iter(|| params512()));
     // c.bench_function("params 768", |b| b.iter(|| params768()));
-    c.bench_function("params 1024", |b| b.iter(|| params1024()));
+    // c.bench_function("params 1024", |b| b.iter(|| params1024()));
     // c.bench_function("params 1536", |b| b.iter(|| params1536()));
-    // c.bench_function("params 2048", |b| b.iter(|| params2048()));
+    c.bench_function("params 2048", |b| b.iter(|| params2048()));
 }
 
 criterion_group!(benches, criterion_benchmark);
