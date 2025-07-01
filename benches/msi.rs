@@ -2,7 +2,13 @@
 // and inversions for the three base fields. These values are needed to compute
 // the correct optimisation costs for the strategies.
 
-use klapoti::fields::Fp512Ext::Fp2 as FpSmall;
+// use klapoti::fields::Fp64Ext::Fp2 as FpSmall;
+// use klapoti::fields::Fp128Ext::Fp2 as FpSmall;
+// use klapoti::fields::Fp256Ext::Fp2 as FpSmall;
+// use klapoti::fields::Fp512Ext::Fp2 as FpSmall;
+use klapoti::fields::Fp768Ext::Fp2 as FpSmall;
+// use klapoti::fields::Fp1024Ext::Fp2 as FpSmall;
+// use klapoti::fields::Fp1536Ext::Fp2 as FpSmall;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::time::Duration;

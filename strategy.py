@@ -114,11 +114,36 @@ def optimised_strategy(n, M, S, I):
 # where the cost is the time in ns for one operation
 # Use the middle time values from msi.rs output:
 
-# data_big = [1733, 2937, 2355, 85162]
-data_big = [1638, 2782, 1967, 68776]
-strat = optimised_strategy(*data_big)
-print("big:")
+
+# 64
+# data = [241, 37, 31, 2028]
+
+# 128
+# data = [410, 115, 86, 4662]
+
+# 256
+# data = [888, 429, 290, 17620]
+
+# 512
+# data = [1638, 2782, 1967, 68776]
+
+# 768
+data = [2407, 7892, 4766, 186800]
+
+# 1024
+# data = [3179, 13719, 7222, 361090]
+
+# 1536
+# data = [4722, 31497, 15469, 787660]
+
+# 2048
+# data = [, , , ]
+
+strat = optimised_strategy(*data)
+print("")
 print(strat)
+print("")
+print(len(strat))
 print("")
 
 """

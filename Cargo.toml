@@ -33,15 +33,15 @@ version = "0.1.42"
 [dev-dependencies]
 criterion = "0.5"
 
-[[bench]]
-name = "msi"
-path = "benches/msi.rs"
-harness = false
-
 # [[bench]]
-# name = "benchmark"
-# path = "benches/benchmark.rs"
+# name = "msi"
+# path = "benches/msi.rs"
 # harness = false
+
+[[bench]]
+name = "benchmark"
+path = "benches/benchmark.rs"
+harness = false
 
 
 
