@@ -21,6 +21,9 @@ macro_rules! define_ec_core {
         use core::ops::Neg;
         use rand_core::{CryptoRng, RngCore};
         use std::fmt;
+        use rug::Integer;
+        use crate::util::bits_from_big;
+        use crate::ec::mp::{mp_sub, select_ct, select_ct_arr, swap_ct, mp_shiftr};
 
         /// Curve point.
         /// Points do not know which curve they are on! The caller must ensure
@@ -175,7 +178,7 @@ macro_rules! define_ec_core {
             }
 
             #[allow(dead_code)]
-            fn isinfinity(self) -> u32 {
+            pub fn isinfinity(self) -> u32 {
                 self.Z.iszero()
             }
 
@@ -190,6 +193,11 @@ macro_rules! define_ec_core {
                 let e = (&self.X * &rhs.Z).equals(&(&rhs.X * &self.Z));
                 (inf1 & inf2) | (!inf1 & !inf2 & e)
             }
+
+            /// Returns the X and Z coordinates of the projective point
+            pub fn to_xz(self) -> (Fq, Fq) {
+                (self.X, self.Z)
+            }
         }
 
         impl fmt::Display for PointX {
@@ -203,7 +211,9 @@ macro_rules! define_ec_core {
         #[derive(Clone, Copy, Debug)]
         pub struct Curve {
             pub A: Fq, // curve parameter
-            A24: Fq,   // (A+2)/4
+            pub A24: Fq,   // (A+2)/4
+            pub A24_num: Fq,
+            pub A24_denom: Fq,
         }
 
         impl Curve {
@@ -217,6 +227,18 @@ macro_rules! define_ec_core {
                 Self {
                     A: *A,
                     A24: (A + &Fq::TWO).half().half(),
+                    A24_num: A + &Fq::TWO,
+                    A24_denom: Fq::TWO + Fq::TWO,
+                }
+            }
+
+            pub fn new_fromA24(A24_num: &Fq, A24_denom: &Fq) -> Self {
+                let A24 = A24_num / A24_denom;
+                Self {
+                    A: A24.mul4() - &Fq::TWO,
+                    A24: A24,
+                    A24_num: *A24_num,
+                    A24_denom: *A24_denom,
                 }
             }
 
@@ -516,23 +538,127 @@ macro_rules! define_ec_core {
                 *Z1 = Xp * &(&V1 - &V2).square();
             }
 
+            #[inline(always)]
+            pub fn xdbl(self, X: &mut Fq, Z: &mut Fq) {
+                let mut V1 = (&*X + &*Z).square();
+                let V2 = (&*X - &*Z).square();
+                *X = &V1 * &V2;
+                V1 -= &V2;
+                *Z = V1;
+                *Z *= &self.A24;
+                *Z += &V2;
+                *Z *= &V1;
+            }
+
+            /// Return [2^n]*P as a new point
+            #[inline(always)]
+            pub fn x_double_iter(self, P: &PointX, n: usize) -> PointX {
+                let mut P3 = *P;
+                for _ in 0..n {
+                    self.xdbl(&mut P3.X, &mut P3.Z);
+                }
+                P3
+            }
+
+            #[inline(always)]
+            pub fn xtriple(self, X: &mut Fq, Z: &mut Fq) {
+                let X0 = *X;
+                let Z0 = *Z;
+                self.xdbl(X, Z);
+                self.xadd(&X0, &Z0, &X0, &Z0, X, Z);
+            }
+
+            #[inline(always)]
+            pub fn xmul(self, P: &mut PointX, s: Integer) {
+                let bits = bits_from_big(s);
+
+                let P0 = *P;
+                let mut Q = *P;
+                self.xdbl(&mut Q.X, &mut Q.Z);
+
+                for b in bits.into_iter().rev().skip(1) {
+                    // TODO: constant time
+                    if b == 1 {
+                        (Q, *P) = self.double_add(&Q, P, &P0);
+                    } else {
+                        (*P, Q) = self.double_add(P, &Q, &P0);
+                    }
+                }
+            }
+
+            #[inline(always)]
+            pub fn double_add(
+                &self,
+                P: &PointX,
+                Q: &PointX,
+                PQ: &PointX,
+            ) -> (PointX, PointX) {
+                let mut Sum = PointX::new_xz(&Fq::ZERO, &Fq::ZERO);
+                let mut Db = PointX::new_xz(&Fq::ZERO, &Fq::ZERO);
+
+                let mut t0 = &P.X + &P.Z;
+                let mut t1 = &P.X - &P.Z;
+                let mut t2 = &Q.X + &Q.Z;
+                let t3 = &Q.X - &Q.Z;
+
+                Db.X = t0.square();
+                Db.Z = t1.square();
+
+                t0 *= &t3;
+                t1 *= &t2;
+
+                t2 = &Db.X - &Db.Z;
+                Db.Z *= self.A24_denom;
+                Db.X *= &Db.Z;
+
+                Sum.X = self.A24_num * &t2;
+                Sum.Z = &t0 - &t1;
+
+                Db.Z += &Sum.X;
+                Sum.X = &t0 + &t1;
+
+                Db.Z *= &t2;
+                Sum.X = Sum.X.square() * &PQ.Z;
+                Sum.Z = Sum.Z.square() * &PQ.X;
+
+                (Db, Sum)
+            }
+
+            // s*P + Q
+            #[inline(always)]
+            pub fn ladder_3pt( 
+                &self,
+                P: &PointX,
+                Q: &PointX,
+                PQ: &PointX,
+                s: Integer,
+            ) -> PointX {
+                let n_bits = bits_from_big(s);
+                
+                let mut R0 = *P;
+                let mut R1 = *Q;
+                let mut R2 = *PQ;
+
+                for b in n_bits.iter().take(n_bits.len() - 1) {
+                    // TODO: constant time
+                    // TODO: double_add
+                    if *b == 1 {
+                        self.xadd(&R2.X, &R2.Z, &R0.X, &R0.Z, &mut R1.X, &mut R1.Z);
+                    } else {
+                        self.xadd(&R1.X, &R1.Z, &R0.X, &R0.Z, &mut R2.X, &mut R2.Z);
+                    }
+                    self.xdbl(&mut R0.X, &mut R0.Z);
+                }
+                self.xadd(&R2.X, &R2.Z, &R0.X, &R0.Z, &mut R1.X, &mut R1.Z);
+
+                R1 
+            }
+
             /// P3 <- n*P
             /// Integer n is encoded as unsigned little-endian, with length
             /// nbitlen bits. Bits beyond that length are ignored.
             pub fn mul_into(self, P3: &mut Point, P: &Point, n: &[u8], nbitlen: usize) {
                 // Montgomery ladder: see https://eprint.iacr.org/2017/212
-
-                #[inline(always)]
-                fn xdbl(curve: &Curve, X: &mut Fq, Z: &mut Fq) {
-                    let mut V1 = (&*X + &*Z).square();
-                    let V2 = (&*X - &*Z).square();
-                    *X = &V1 * &V2;
-                    V1 -= &V2;
-                    *Z = V1;
-                    *Z *= &curve.A24;
-                    *Z += &V2;
-                    *Z *= &V1;
-                }
 
                 #[inline(always)]
                 fn xadd_aff(_curve: &Curve, Xp: &Fq, X0: &Fq, Z0: &Fq, X1: &mut Fq, Z1: &mut Fq) {
@@ -561,7 +687,7 @@ macro_rules! define_ec_core {
                         Fq::condswap(&mut X0, &mut X1, ctl ^ cc);
                         Fq::condswap(&mut Z0, &mut Z1, ctl ^ cc);
                         xadd_aff(&self, &Xp, &X0, &Z0, &mut X1, &mut Z1);
-                        xdbl(&self, &mut X0, &mut Z0);
+                        self.xdbl(&mut X0, &mut Z0);
                         cc = ctl;
                     }
                 } else {
@@ -570,7 +696,7 @@ macro_rules! define_ec_core {
                         Fq::condswap(&mut X0, &mut X1, ctl ^ cc);
                         Fq::condswap(&mut Z0, &mut Z1, ctl ^ cc);
                         self.xadd(&P.X, &P.Z, &X0, &Z0, &mut X1, &mut Z1);
-                        xdbl(&self, &mut X0, &mut Z0);
+                        self.xdbl(&mut X0, &mut Z0);
                         cc = ctl;
                     }
                 }
@@ -711,11 +837,538 @@ macro_rules! define_ec_core {
                 let ok = self.complete_pointX_into(&mut P3, P);
                 (P3, ok)
             }
+
+            fn select_point(self, P: &Point, Q: &Point, ctl: u64) -> Point {
+                let mut S = Point::INFINITY;
+                let ctl32 = ctl as u32;
+                
+                S.X = Fq::select(&P.X, &Q.X, ctl32);
+                S.Y = Fq::select(&P.Y, &Q.Y, ctl32);
+                S.Z = Fq::select(&P.Z, &Q.Z, ctl32);
+
+                S
+            }
+
+            fn swap_points(self, P: &mut Point, Q: &mut Point, ctl: u64) {
+                let ctl32 = ctl as u32;
+                Fq::condswap(&mut P.X, &mut Q.X, ctl32);
+                Fq::condswap(&mut P.Y, &mut Q.Y, ctl32);
+                Fq::condswap(&mut P.Z, &mut Q.Z, ctl32);
+            }
+
+            /*
+            let mut k_digits = c1.to_digits::<u64>(Order::MsfLe);
+            k_digits.reverse();
+            // TODO
+
+            // let k_digits: Vec<u64> = [1, 0, 0, 0].to_vec(); // TODO: remove, JUST DEBUGGING
+
+            let mut l_digits = c2.to_digits::<u64>(Order::MsfLe);
+            l_digits.reverse();
+            while l_digits.len() < 4 {
+                l_digits.push(0);
+            }
+            // let l_digits: Vec<u64> = [1, 0, 0, 0].to_vec(); // TODO: remove, JUST DEBUGGING
+
+            let f: usize = 36; // TODO
+            let Pc = self.curve.xdblmul_bounded(&Pc, &k_digits, &Qc, &l_digits, &PmQc, f);
+            */
+            pub fn xdblmul_bounded(
+                self,
+                P: &Point,
+                k: &[u64],
+                Q: &Point,
+                l: &[u64],
+                PQ: &Point,
+                f: usize, // TODO
+            ) -> Point {
+                // TODO: we use Point, but we could use PointX (and remove some unnecessary copying
+                // of Y in select_point, swap_points...)
+                let mut sigma = [0u64; 2];
+                let mut pre_sigma = 0u64;
+                let mut evens = 0;
+                let mut mevens = 0;
+                let mut bitk0 = k[0] & 1;
+                let mut bitl0 = l[0] & 1;
+                let maskk = 0u64.wrapping_sub(bitk0); // Parity masks
+                let maskl = 0u64.wrapping_sub(bitl0);
+            
+                sigma[0] = bitk0 ^ 1; // 1 if k is even, 0 if k is odd.
+                sigma[1] = bitl0 ^ 1;
+
+                evens = sigma[0] + sigma[1];
+                mevens = 0u64.wrapping_sub(evens & 1);
+
+                // TODO:
+                const NWORDS_ORDER: usize = 4;
+            
+                sigma[0] &= mevens;
+                sigma[1] = (sigma[1] & mevens) | (1 & !mevens);
+            
+                // Convert even scalars to odd
+                let mut one = [0u64; NWORDS_ORDER];
+                one[0] = 1;
+            
+                let mut k_t = k.to_vec();
+                let mut l_t = l.to_vec();
+
+                mp_sub(&mut k_t, k, &one, NWORDS_ORDER);
+                mp_sub(&mut l_t, l, &one, NWORDS_ORDER);
+
+                let k_t_c = k_t.clone();
+                let l_t_c = l_t.clone();
+ 
+                select_ct_arr(&mut k_t, &k_t_c, k, maskk, NWORDS_ORDER);
+                select_ct_arr(&mut l_t, &l_t_c, l, maskl, NWORDS_ORDER);
+
+                const BITS: usize = 256;
+
+                let mut r = [0u64; 2 * BITS];
+                
+                // Scalar recoding
+                for i in 0..BITS {
+                    let maskk = 0u64.wrapping_sub(sigma[0] ^ pre_sigma);
+                    swap_ct(&mut k_t, &mut l_t, maskk, NWORDS_ORDER); 
+
+                    let bs1_ip1 = if i == BITS - 1 { 0 } else { mp_shiftr(&mut k_t, 1, NWORDS_ORDER) };
+                    let bs2_ip1 = if i == BITS - 1 { 0 } else { mp_shiftr(&mut l_t, 1, NWORDS_ORDER) };
+            
+                    let bs1_i = k_t[0] & 1;
+                    let bs2_i = l_t[0] & 1;
+
+                    r[2 * i] = bs1_i ^ bs1_ip1;
+                    r[2 * i + 1] = bs2_i ^ bs2_ip1;
+            
+                    pre_sigma = sigma[0];
+                    let maskk = 0u64.wrapping_sub(r[2 * i + 1]);
+
+                    let temp = select_ct(sigma[0], sigma[1], maskk);
+                    sigma[1] = select_ct(sigma[1], sigma[0], maskk);
+                    sigma[0] = temp;
+                }
+                
+                // Point initialization
+                let maskk = 0u64.wrapping_sub(sigma[0]);
+
+                // Do not use Point::INFINITY here, we need X = 1 for xadd operation below (otherwise
+                // the addition of a point with INFINITY gives INFINITY).
+                let mut R0 = Point::new_xyz(&Fq::ONE, &Fq::ONE, &Fq::ZERO);
+
+                let mut R1 = self.select_point(P, Q, maskk);
+                let mut R2 = self.select_point(Q, P, maskk);
+
+                let mut diff1a = R1;
+                let mut diff1b = R2;
+
+                self.xadd(&PQ.X, &PQ.Z, &R1.X, &R1.Z, &mut R2.X, &mut R2.Z);
+
+                let mut diff2a = R2;
+                let mut diff2b = PQ.clone(); // TODO: why clone needed?
+
+                let mut T0 = R0;
+                let mut T1 = R1;
+                let mut T2 = R2;
+
+                // Main loop
+                for i in (0..BITS).rev() {
+                    // let apply = i <= f + 2 + (BITS - TORSION_PLUS_EVEN_POWER);
+                    // TODO
+                    let apply = i <= 2 + BITS;
+            
+                    let h = r[2 * i] + r[2 * i + 1];
+                    let maskk = 0u64.wrapping_sub(h & 1);
+
+                    if apply {
+                        T0 = self.select_point(&R0, &R1, maskk);
+                    }
+
+                    let maskk = 0u64.wrapping_sub(h >> 1);
+            
+                    if apply {
+                        T0 = self.select_point(&T0, &R2, maskk);
+                        self.xdbl(&mut T0.X, &mut T0.Z);
+                    }
+            
+                    let maskk = 0u64.wrapping_sub(r[2 * i + 1]);
+                    if apply {
+                        T1 = self.select_point(&R0, &R1, maskk);
+                        T2 = self.select_point(&R1, &R2, maskk);
+                    }
+            
+                    self.swap_points(&mut diff1a, &mut diff1b, maskk);
+
+                    if apply {
+                        self.xadd(&diff1a.X, &diff1a.Z, &T2.X, &T2.Z, &mut T1.X, &mut T1.Z);
+
+                        let R2_old = R2.clone();
+                        self.xadd(&diff2a.X, &diff2a.Z, &R0.X, &R0.Z, &mut R2.X, &mut R2.Z);
+                        T2 = R2.clone(); // TODO
+                        R2 = R2_old; // TODO
+                    }
+            
+                    let maskk = 0u64.wrapping_sub(h & 1);
+                    self.swap_points(&mut diff2a, &mut diff2b, maskk);
+            
+                    R0 = T0;
+                    R1 = T1;
+                    R2 = T2;
+                }
+
+                let mut S = self.select_point(&R0, &R1, mevens);
+            
+                let maskk = 0u64.wrapping_sub(bitk0 & bitl0);
+                S = self.select_point(&S, &R2, maskk);
+
+                let Sxz = PointX::new_xz(&S.X, &S.Z);
+                let ok = self.complete_pointX_into(&mut S, &Sxz); // TODO: check ok
+
+                S
+            }
+
+            // S <- 2*S
+            fn line_double(self, pc: &mut PairingContext, S: &mut Point) {
+                // Line slope is L/T. Special cases:
+                //   S = inf                 -> current value is not changed
+                //   S != inf and 2*S = inf  -> line is vertical
+                // When 2*S = inf, we set the slope to (1,0). To make the
+                // formulas also correct when S = inf, we enforce X != 0 in
+                // that case.
+                let sinf = S.isinfinity();
+                S.X.set_cond(&Fq::ONE, sinf);
+                let XX = S.X.square();
+                let ZZ = S.Z.square();
+                let dXZ = &(&S.X + &S.Z).square() - &XX - &ZZ;
+                let mut L = &XX.mul3() + &(&self.A * &dXZ) + &ZZ;
+                let YY = S.Y.square();
+                let T = &(&S.Y + &S.Z).square() - &YY - &ZZ;
+                let tz = T.iszero();
+                L.set_cond(&Fq::ONE, tz);
+
+                // Apply the line on Q+R2 and R2.
+                let n1 = &(&L * &(&(&pc.xq * &S.Z) - &S.X)) - &(&T * &(&(&pc.yq * &S.Z) - &S.Y));
+                let d3 = &(&L * &(&(&pc.xr * &S.Z) - &S.X)) - &(&T * &(&(&pc.yr * &S.Z) - &S.Y));
+
+                // S' = 2*S
+                // If S' = inf, we enforce X = 1.
+                let V = (&XX - &ZZ).square();
+                let dYY = YY.mul2();
+                let TT = T.square();
+                S.X = &V * &T;
+                S.Y = &(&L * &(&(&dYY * &dXZ) - &V)) - &(&dYY * &TT);
+                S.Z = &T * &TT;
+                S.X.set_cond(&Fq::ONE, tz);
+
+                // Apply the vertical line going through S'. If S' = inf,
+                // this should be a no-operation; since we enforced X = 1
+                // in that case, the formulas still work.
+                let n2 = &(&pc.xr * &S.Z) - &S.X;
+                let d4 = &(&pc.xq * &S.Z) - &S.X;
+
+                // Update vn/vd.
+                pc.vn.set_square();
+                pc.vn *= &(&n1 * &n2);
+                pc.vd.set_square();
+                pc.vd *= &(&d3 * &d4);
+            }
+
+            fn weil_pairing_2exp(self, e: usize, P: &Point, Q: &Point) -> (Fq, u32) {
+                // For order n = 2^e, we use R1 = P-Q and R2 = P+Q. Thus,
+                // P+R1 = 2*P-Q, and Q+R2 = P+2*Q.
+                // All Miller steps in f_P(A_Q) after the first iteration use
+                // two line functions:
+                //   - line from (2^k)*P to -(2^(k+1))*P, for k >= 1
+                //   - line from -(2^(k+1))*P to +(2^(k+1))*P, for k >= 1
+                // If one of these lines goes through R2 or Q+R2 (thus
+                // triggering a zero), then this means that (2^k+1)*P or
+                // (2^k-1)*P (for some integer k >= 1) is equal to either
+                // +Q or -Q. P has order n = 2^e; 2^k+1 and 2^k-1 are odd,
+                // thus invertible modulo n, which means that P and Q are
+                // colinear and the Weil pairing should ultimately be 1. We
+                // thus handle these cases properly by normalizing zeros to
+                // a final result of 1. The same reasoning goes for f_Q(A_P).
+                //
+                // Remaining cases are for the computation of f1_P(A_Q) and
+                // f1_Q(A_P), and the first iteration of the Miller loop.
+                // We potentially get a zero when some point is on a given
+                // line; here is the list of all cases to account for (for
+                // f_P(A_Q) and f_Q(A_P)):
+                //
+                //    P = R2             Q = inf
+                //    P = Q+R2           2*Q = inf
+                //    R1 = R2            2*Q = inf
+                //    R1 = Q+R2          3*Q = inf (impossible)
+                //    -(P+R1) = R2       3*P = inf (impossible)
+                //    -(P+R1) = Q+R2     Q = -3*P (colinear)
+                //    P+R1 = R2          P = 2*Q (colinear)
+                //    P+R1 = Q+R2        3*P = 3*Q (colinear)
+                //
+                //    Q = R1             P = 2*Q (colinear)
+                //    Q = P+R1           2*P = 2*Q
+                //    R2 = R1            2*Q = inf
+                //    R2 = P+R1          P = -2*Q (colinear)
+                //    -(Q+R2) = R1       2*P = -3*Q (colinear)
+                //    -(Q+R2) = P+R1     Q = 3*P (colinear)
+                //    Q+R2 = R1          2*P = 3*Q (colinear)
+                //    Q+R2 = P+R1        P = 3*Q (colinear)
+                //
+                // The left column lists cases that trigger a zero in the
+                // accumulator; the right column gives the corresponding
+                // conditions on points P and Q, using R1 = P-Q and R2 = P+Q.
+                // Those marked "impossible" cannot happen for points of
+                // n-torsion (and the algorithm explicitly verifies that
+                // both points are n-torsion). "Colinear" means that one of
+                // the point is expressed as an integer multiple of the other,
+                // leading to a Weil pairing of 1, and the normalization step
+                // of zeros to 1 correctly handles these. The only remaining
+                // cases that must be handled as corrective steps are the
+                // following:
+                //
+                //    P = inf
+                //    Q = inf
+                //    2*P = inf
+                //    2*Q = inf
+                //    2*(P-Q) = inf
+                //
+                // When P = inf or Q = inf, w(P,Q) = 1.
+                //
+                // For the order-2 cases: let (U,V) be a basis of the
+                // n-torsion group, so that any n-torsion point P can be
+                // uniquely written as P = a*U + b*V, for two integers
+                // (a,b) taken modulo n. The points of 2-torsion then
+                // correspond to (0,0) (the point-at-infinity), (n/2,0),
+                // (0,n/2) and (n/2,n/2). Then, if Q = a'*U + b'*V, we
+                // have:
+                //    w(P,Q) = g^(a*b'-a'*b)
+                // for g = w(U,V) (which is a generator of the n-th roots of
+                // unity in GF(p^2)). In particular, if 2*P = inf, then
+                // both a and b are in {0,n/2}, and we have:
+                //
+                //    w(P,Q) = w((a/(n/2),b/(n/2)), (n/2)*Q)
+                //
+                // with (n/2)*Q being itself a point of 2-torsion. This yields
+                // either 1 or -1:
+                //
+                //    If (n/2)*Q != inf and (n/2)*Q != P, then w(P,Q) = -1
+                //    Otherwise, w(P,Q) = 1.
+                //
+                // We compute (n/2)*P and (n/2)*Q as part of Miller's algorithm,
+                // so we can handle these cases with negligible overhead.
+                //
+                // For the final case of 2*(P-Q) = 0, we can remark that:
+                //
+                //    w(P,Q) = w(P-Q,Q)*w(Q,Q) = w(P-Q,Q)
+                //
+                // so that we can handle that case similarly to that of points
+                // of order 2. The point P-Q is R1, we compute it explicitly;
+                // testing whether it has order 2 is then simply checking whether
+                // is Y coordinate is zero.
+
+                let R1 = self.sub(P, Q);
+                let R2 = self.add(P, Q);
+                let PR1 = self.add(P, &R1);
+                let QR2 = self.add(Q, &R2);
+
+                // Get the slopes for the lines that double P and Q, respectively.
+                let dA = self.A.mul2();
+                let Lp = &P.X.square().mul3() + &(&(&(&dA * &P.X) + &P.Z) * &P.Z);
+                let Tp = &P.Y.mul2() * &P.Z;
+                let Lq = &Q.X.square().mul3() + &(&(&(&dA * &Q.X) + &Q.Z) * &Q.Z);
+                let Tq = &Q.Y.mul2() * &Q.Z;
+
+                // f1_P(A_Q)
+                let n1 = &(&QR2.X * &PR1.Z) - &(&PR1.X * &QR2.Z);
+                let d2 = &(&R2.X * &PR1.Z) - &(&PR1.X * &R2.Z);
+                let L = &(&R1.Y * &P.Z) - &(&P.Y * &R1.Z);
+                let T = &(&R1.X * &P.Z) - &(&P.X * &R1.Z);
+                let n3 = &(&T * &(&(&R2.Y * &P.Z) - &(&P.Y * &R2.Z)))
+                    - &(&L * &(&(&R2.X * &P.Z) - &(&P.X * &R2.Z)));
+                let d4 = &(&T * &(&(&QR2.Y * &P.Z) - &(&P.Y * &QR2.Z)))
+                    - &(&L * &(&(&QR2.X * &P.Z) - &(&P.X * &QR2.Z)));
+                let f1pn = &n1 * &n3;
+                let f1pd = &d2 * &d4;
+
+                // f1_Q(A_P)
+                let n1 = -&n1;
+                let d2 = &(&R1.X * &QR2.Z) - &(&QR2.X * &R1.Z);
+                let L = &(&R2.Y * &Q.Z) - &(&Q.Y * &R2.Z);
+                let T = &(&R2.X * &Q.Z) - &(&Q.X * &R2.Z);
+                let n3 = &(&T * &(&(&R1.Y * &Q.Z) - &(&Q.Y * &R1.Z)))
+                    - &(&L * &(&(&R1.X * &Q.Z) - &(&Q.X * &R1.Z)));
+                let d4 = &(&T * &(&(&PR1.Y * &Q.Z) - &(&Q.Y * &PR1.Z)))
+                    - &(&L * &(&(&PR1.X * &Q.Z) - &(&Q.X * &PR1.Z)));
+                let f1qn = &n1 * &n3;
+                let f1qd = &d2 * &d4;
+
+                // Get the affine coordinates for P, Q, R1, R2, P+R1 and Q+R2,
+                // and also normalize lamb2p, lamb2q, f1p and f1q; this makes
+                // everything else faster.
+                let g1 = &P.Z * &Q.Z;
+                let g2 = &g1 * &R1.Z;
+                let g3 = &g2 * &R2.Z;
+                let g4 = &g3 * &PR1.Z;
+                let g5 = &g4 * &QR2.Z;
+                let g6 = &g5 * &Tp;
+                let g7 = &g6 * &Tq;
+                let g8 = &g7 * &f1pd;
+                let mut gg = (&g8 * &f1qd).invert();
+                let if1qd = &gg * &g8;
+                gg *= &f1qd;
+                let if1pd = &gg * &g7;
+                gg *= &f1pd;
+                let iTq = &gg * &g6;
+                gg *= &Tq;
+                let iTp = &gg * &g5;
+                gg *= &Tp;
+                let iZqr2 = &gg * &g4;
+                gg *= &QR2.Z;
+                let iZpr1 = &gg * &g3;
+                gg *= &PR1.Z;
+                let iZr2 = &gg * &g2;
+                gg *= &R2.Z;
+                let iZr1 = &gg * &g1;
+                gg *= &R1.Z;
+                let iZq = &gg * &P.Z;
+                let iZp = &gg * &Q.Z;
+
+                let (xp, yp) = (&P.X * &iZp, &P.Y * &iZp);
+                let (xq, yq) = (&Q.X * &iZq, &Q.Y * &iZq);
+                let (xr1, yr1) = (&R1.X * &iZr1, &R1.Y * &iZr1);
+                let (xr2, yr2) = (&R2.X * &iZr2, &R2.Y * &iZr2);
+                let (xpr1, ypr1) = (&PR1.X * &iZpr1, &PR1.Y * &iZpr1);
+                let (xqr2, yqr2) = (&QR2.X * &iZqr2, &QR2.Y * &iZqr2);
+                let lamb2p = &Lp * &iTp;
+                let lamb2q = &Lq * &iTq;
+                let f1p = &f1pn * &if1pd;
+                let f1q = &f1qn * &if1qd;
+
+                // Set the pairing context for f_P(A_Q). In that context,
+                // (xq,yq) is Q+R2, and (xr,yr) is R2.
+                let mut pc = PairingContext {
+                    xp: xp,
+                    yp: yp,
+                    xq: xqr2,
+                    yq: yqr2,
+                    xr: xr2,
+                    yr: yr2,
+                    f1: f1p,
+                    lamb2: lamb2p,
+                    xq_xp: &xqr2 - &xp,
+                    yq_yp: &yqr2 - &yp,
+                    xr_xp: &xr2 - &xp,
+                    yr_yp: &yr2 - &yp,
+                    xp_A: &xp + &self.A,
+                    vn: f1p,
+                    vd: Fq::ONE,
+                };
+
+                // Compute f_P(A_Q).
+                // We keep the x coordinate of (n/2)*P in hnpX/hnpZ.
+                let mut S = *P;
+                for _ in 1..e {
+                    self.line_double(&mut pc, &mut S);
+                }
+                let hnpX = S.X;
+                let hnpZ = S.Z;
+                self.line_double(&mut pc, &mut S);
+                let okp = S.isinfinity();
+                let vn1 = pc.vn;
+                let vd1 = pc.vd;
+
+                // Prepare the pairing context for f_Q(A_P).
+                let mut pc = PairingContext {
+                    xp: xq,
+                    yp: yq,
+                    xq: xpr1,
+                    yq: ypr1,
+                    xr: xr1,
+                    yr: yr1,
+                    f1: f1q,
+                    lamb2: lamb2q,
+                    xq_xp: &xpr1 - &xq,
+                    yq_yp: &ypr1 - &yq,
+                    xr_xp: &xr1 - &xq,
+                    yr_yp: &yr1 - &yq,
+                    xp_A: &xq + &self.A,
+                    vn: f1q,
+                    vd: Fq::ONE,
+                };
+
+                // Compute f_Q(A_P).
+                // We keep the x coordinate of (n/2)*Q in hnqX/hnqZ.
+                let mut S = *Q;
+                for _ in 1..e {
+                    self.line_double(&mut pc, &mut S);
+                }
+                let hnqX = S.X;
+                let hnqZ = S.Z;
+                self.line_double(&mut pc, &mut S);
+                let okq = S.isinfinity();
+                let vn2 = pc.vn;
+                let vd2 = pc.vd;
+
+                // w = wn/wd = f_P(A_Q) / f_Q(A_P)
+                let wn = &vn1 * &vd2;
+                let wd = &vd1 * &vn2;
+
+                // Handling of points of order 1:
+                //  - If P = inf or Q = inf, value is 1.
+                //  - If P-Q = inf or P+Q = inf, value is 1.
+                //  - If 2*P-Q = inf or P+2*Q = inf, value is 1.
+                let p_z = P.Z.iszero();
+                let q_z = Q.Z.iszero();
+                let r1_z = R1.Z.iszero();
+                let r2_z = R2.Z.iszero();
+                let pr1_z = PR1.Z.iszero();
+                let qr2_z = QR2.Z.iszero();
+                let mut set1 = p_z | q_z | r1_z | r2_z | pr1_z | qr2_z;
+
+                // Handling of points of order 2:
+                //  - If P != inf and 2*P = inf, value is:
+                //       -1 if (n/2)*Q != inf and (n/2)*Q != P
+                //       1 otherwise
+                //  - If Q != inf and 2*Q = inf, value is:
+                //       -1 if (n/2)*P != inf and (n/2)*P != Q
+                //       1 otherwise
+                //  - If P-Q != inf and 2*(P-Q) = inf, value is:
+                //       -1 if (n/2)*Q != inf and (n/2)*Q != P-Q
+                //       1 otherwise
+                let p_t = P.Y.iszero() & !p_z;
+                let q_t = Q.Y.iszero() & !q_z;
+                let r1_t = R1.Y.iszero() & !r1_z;
+                let hnP_z = hnpZ.iszero();
+                let hnQ_z = hnqZ.iszero();
+                let hnQeqP =
+                    (hnQ_z & p_z) | ((&hnqX * &P.Z).equals(&(&P.X * &hnqZ)) & p_t & !hnQ_z);
+                let hnPeqQ =
+                    (hnP_z & q_z) | ((&hnpX * &Q.Z).equals(&(&Q.X * &hnpZ)) & q_t & !hnP_z);
+                let hnQeqR1 =
+                    (hnQ_z & r1_z) | ((&hnqX * &R1.Z).equals(&(&R1.X * &hnqZ)) & r1_t & !hnQ_z);
+                let mut neg1 = !set1
+                    & ((p_t & !hnQ_z & !hnQeqP)
+                        | (q_t & !hnP_z & !hnPeqQ)
+                        | (r1_t & !hnQ_z & !hnQeqR1));
+                set1 |= p_t | q_t | r1_t;
+
+                // Handling of zeros:
+                //  - If none of the cases above was encountered, a zero in
+                //    either wn or wd implies colinearity, and the result is 1.
+                set1 |= !set1 & (wn.iszero() | wd.iszero());
+
+                // An error is reported if P or Q was not n-torsion. On error,
+                // we force the result to 1.
+                let ok = okp & okq;
+                set1 |= !ok;
+                neg1 &= ok;
+                let mut w = &wn / &wd;
+                w.set_cond(&Fq::ONE, set1);
+                w.set_condneg(set1 & neg1);
+                (w, ok)
+            }
         }
 
         impl fmt::Display for Curve {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "Montgomery Curve with coefficient: {}", self.A)
+                write!(f, "Montgomery Curve with coefficient: {}, A24: {}", self.A, self.A24)
             }
         }
 
@@ -747,6 +1400,24 @@ macro_rules! define_ec_core {
         impl fmt::Display for CouplePoint {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 write!(f, "Couple point with points:\n{}\n{}", self.P1, self.P2)
+            }
+        }
+
+        #[derive(Clone, Copy, Debug)]
+        pub struct CouplePointX {
+            P1: PointX,
+            P2: PointX,
+        }
+
+        impl CouplePointX {
+            /// Create a CouplePointX given a pair of points P1, P2 on E1 x E2
+            pub fn new(P1: &PointX, P2: &PointX) -> Self {
+                Self { P1: *P1, P2: *P2 }
+            }
+
+            /// Return the points P1, P2
+            pub fn points(self) -> (PointX, PointX) {
+                (self.P1, self.P2)
             }
         }
 
@@ -786,6 +1457,15 @@ macro_rules! define_ec_core {
                 C3
             }
 
+            pub fn x_double(self, C: &CouplePointX) -> CouplePointX {
+                let mut P1 = C.P1;
+                let mut P2 = C.P2;
+                self.E1.xdbl(&mut P1.X, &mut P1.Z);
+                self.E2.xdbl(&mut P2.X, &mut P2.Z);
+
+                CouplePointX::new(&P1, &P2)
+            }
+
             /// Repeatedly doubles the pair of points (P1, P2) on E1 x E2 to get
             /// ([2^n]P1, [2^n]P2)
             pub fn double_iter(self, C: &CouplePoint, n: usize) -> CouplePoint {
@@ -794,7 +1474,200 @@ macro_rules! define_ec_core {
                 C3.P2 = self.E2.double_iter(&C3.P2, n);
                 C3
             }
+
+            pub fn x_double_iter(self, C: &CouplePointX, n: usize) -> CouplePointX {
+                let mut C3 = *C;
+                C3.P1 = self.E1.x_double_iter(&C3.P1, n);
+                C3.P2 = self.E2.x_double_iter(&C3.P2, n);
+                C3
+            }
         }
+
+        // Implementation of 3-isogenies
+
+        // TODO: there already exists a function for this
+        fn triple_e_point_iter_into(E: &Curve, P: &mut PointX, e: usize) {
+            #[inline(always)]
+            fn xTPL(E: &Curve, XP: &mut Fq, ZP: &mut Fq) {
+                let mut X = *XP;
+                let mut Z = *ZP;
+                let XP0 = *XP;
+                let ZP0 = *ZP;
+
+                E.xdbl(&mut X, &mut Z);
+                E.xadd(&XP0, &ZP0, &X, &Z, XP, ZP);
+            }
+            let mut X = P.X;
+            let mut Z = P.Z;
+            for _ in 0..e {
+                xTPL(E, &mut X, &mut Z);
+            }
+            P.X = X;
+            P.Z = Z;
+        }
+
+        /// Given a point P = (XP : ZP) of order 3, computes the
+        /// 3-isogeny codomain with coefficient A represented as
+        /// (A + 2C) / 4C (where A24_num = A + 2C, A24_denom = 4C)
+        /// along with constants K1, K2 used for computing images
+        #[inline]
+        pub fn three_isogeny_codomain(P: &PointX) -> (Fq, Fq, Fq, Fq) {
+            let K1 = &P.X - &P.Z;
+            let K2 = &P.X + &P.Z;
+            let R1 = K1.square();
+            let R2 = K2.square();
+
+            let mut R3 = R2 + R1;
+            let mut R4 = K1 + K2;
+            R4 = R4.square();
+            R4 = R4 - R3;
+            R3 = R4 + R2;
+            R4 = R4 + R1;
+            let mut R5 = R1 + R4;
+            R5.set_mul2();
+            R5 = R5 + R2;
+            let mut A24_num = R5 * R3;
+            R5 = R2 + R3;
+            R5.set_mul2();
+            R5 = R5 + R1;
+            R5 = R5 * R4;
+            let A24_denom = R5 - A24_num;
+            A24_num += A24_denom; // TODO: simply R5?
+
+            (A24_num, A24_denom, K1, K2)
+        }
+
+        /// Given constants (K1, K2) along with the point Q = (XQ : ZQ)
+        /// compute the image of this point in place
+        #[inline(always)]
+        pub fn three_isogeny_image(K1: &Fq, K2: &Fq, Q: &mut PointX) {
+            let mut t0 = &Q.X + &Q.Z;
+            let mut t1 = &Q.X - &Q.Z;
+            t0 *= K1;
+            t1 *= K2;
+            let mut t2 = &t0 + &t1;
+            t0 = &t1 - &t0;
+            t2.set_square();
+            t0.set_square();
+            Q.X *= &t2;
+            Q.Z *= &t0;
+        }
+
+        /// 3^e isogeny chain using kernel
+        /// Compute an isogeny between elliptic products, use an optimised
+        /// strategy for all steps assuming doubling is always more expensive
+        /// that images, which is not true for gluing.
+        pub fn three_isogeny_chain(
+            E: &Curve,
+            K: &PointX,
+            eval_points: Vec<PointX>,
+            n: usize,
+            strategy: &[usize],
+        ) -> (Curve, Vec<PointX>) {
+            let mut kernel_pts = vec![*K];
+            let mut image_points = eval_points.to_vec();
+
+            let mut strat_idx = 0;
+            let mut level: Vec<usize> = vec![0];
+            let mut prev: usize;
+            let mut kernel_len: usize;
+
+            // For initalisation
+            let mut S: PointX;
+            let mut E_curr = *E;
+
+            let mut A24_num;
+            let mut A24_denom;
+            let mut K1: Fq;
+            let mut K2: Fq;
+
+            for k in 0..n {
+                prev = level.iter().sum();
+                kernel_len = kernel_pts.len();
+
+                // Recover the point from the list
+                S = kernel_pts[kernel_len - 1];
+
+                while prev != (n - 1 - k) {
+                    // Add the next strategy to the level
+                    level.push(strategy[strat_idx]);
+
+                    // Triple the points according to the strategy
+                    triple_e_point_iter_into(&E_curr, &mut S, strategy[strat_idx]);
+
+                    // Add the point to the image points
+                    kernel_pts.push(S);
+
+                    // Update the strategy bookkeepping
+                    prev += strategy[strat_idx];
+                    strat_idx += 1;
+                }
+
+                // Clear out the used kernel point and update level
+                kernel_pts.pop();
+                level.pop();
+
+                // Compute the codomain constants
+                (A24_num, A24_denom, K1, K2) = three_isogeny_codomain(&S);
+                E_curr = Curve::new_fromA24(&A24_num, &A24_denom);
+
+                // Push all kernel points through the isogeny
+                for ker in kernel_pts.iter_mut() {
+                    three_isogeny_image(&K1, &K2, ker);
+                }
+                // Push the image points through the isogeny
+                for imP in image_points.iter_mut() {
+                    three_isogeny_image(&K1, &K2, imP);
+                }
+            }
+
+            (E_curr, image_points)
+        }
+
+        /// Weil pairing
+        
+        // Context for a pairing computation. We are computing f_P(A_Q)
+        // with A_Q = <Q+R2> - <R2>, and f_P being the rational function
+        // of divisor n*<P+R1> - n*<R1>.
+        //
+        // Contents:
+        //    xp, yp      affine coordinates of P
+        //    xq, yq      affine coordinates of Q+R2
+        //    xr, yr      affine coordinates of R2
+        //    f1          f1_P(A_Q)
+        //    lamb2       slope of tangent on P
+        //    xq_xp       xq - xp
+        //    yq_yp       yq - yp
+        //    xr_xp       xr - xp
+        //    yr_yp       yr - yp
+        //    xp_A        xp + A
+        //    vn, vd      current value (fraction vn/vd)
+        //
+        // The context assumes that the following special cases are handled
+        // elsewhere by the caller:
+        //    P = inf
+        //    Q+R2 = inf
+        //    R2 = inf
+        //    2*P = inf
+        struct PairingContext {
+            xp: Fq,
+            yp: Fq,
+            xq: Fq,
+            yq: Fq,
+            xr: Fq,
+            yr: Fq,
+            f1: Fq,
+            lamb2: Fq,
+            xq_xp: Fq,
+            yq_yp: Fq,
+            xr_xp: Fq,
+            yr_yp: Fq,
+            xp_A: Fq,
+            vn: Fq,
+            vd: Fq,
+        } 
+        
+        
     };
 } // End of macro: define_ec_core
 

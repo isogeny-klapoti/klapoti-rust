@@ -10,6 +10,7 @@ macro_rules! define_klapoti {
         use crate::quaternion::quaternion_order::QuaternionOrder;
         use crate::util::big_to_bytes;
         use std::time::Instant;
+        use num_traits::Pow;
 
         /// Let O be an imaginary quadratic order with discriminant D and odd conductor f.
         /// Given an O-oriented supersingular elliptic curve (E, iota), take any omega from O such that O = Z[omega]
@@ -28,6 +29,43 @@ macro_rules! define_klapoti {
             pub omegaQ: Point,
         }
 
+        fn montgomerize(curve: &Curve, P: &Point) {
+            unimplemented!()
+        }
+
+        fn canonicalize_orientation(curve: &Curve, P: &Point, Q: &Point, e: u32) -> (Point, Point) {
+            let factor = 2.big().pow(e);
+            let bytes = big_to_bytes(factor);
+            let P4 = curve.mul(&P, &bytes, bytes.len() * 8);
+            let Q4 = curve.mul(&Q, &bytes, bytes.len() * 8);
+
+            let PQ4 = curve.add(&P4, &Q4);
+            let P2 = curve.mul_small(&P4, 2);
+            let Q2 = curve.mul_small(&Q4, 2);
+
+            let points = vec![
+                P4.clone(),
+                Q4.clone(),
+                PQ4.clone(),
+                curve.sub(&PQ4, &P2),
+                curve.add(&P4, &Q2),
+                curve.add(&Q4, &P2),
+            ];
+            
+            for Pt in points.iter() {
+                // let iso2 = montgomerize(curve, Pt);
+                //let codomain = iso2.codomain();
+            }
+
+            // how to use dlog for 2^t:
+            let t = 5;
+            let (w1, ok) = curve.weil_pairing_2exp(t, &P, &Q);
+            assert_eq!(ok, 0xFFFFFFFF);
+
+
+            (*P, *Q)
+        }
+
         impl TwoDim {
             pub fn new(
                 curve: Curve,
@@ -37,7 +75,13 @@ macro_rules! define_klapoti {
                 Q: Point,
                 omegaP: Point,
                 omegaQ: Point,
+                e: u32,
             ) -> Self {
+
+                canonicalize_orientation(&curve, &P, &Q, e); 
+
+                // replace curve, P, Q,...
+
                 Self {
                     curve,
                     omega,
