@@ -1,11 +1,12 @@
 use std::mem;
 
-use gmp_mpfr_sys::gmp;
+use gmp_mpfr_sys::gmp::{self, mpz_limbs_read, mpz_size};
 use num::BigUint;
-use num_bigint::{BigInt, RandBigInt};
+use num_bigint::{BigInt, RandBigInt, Sign};
 use num_prime::RandPrime;
 use num_traits::{One, Pow, Zero};
-use rug::{ops::DivRounding, Integer};
+use rug::{integer::Order, ops::DivRounding, Integer};
+use gmp::mpz_t;
 
 use crate::{
     error::{NotCoprime, NotQuadraticResidueError},
@@ -131,6 +132,20 @@ impl Big for i32 {
     }
 }
 
+impl Big for u32 {
+    #[inline]
+    fn big(self) -> Integer {
+        Integer::from(self)
+    }
+}
+
+impl Big for u64 {
+    #[inline]
+    fn big(self) -> Integer {
+        Integer::from(self)
+    }
+}
+
 impl Big for &str {
     #[inline]
     fn big(self) -> Integer {
@@ -142,6 +157,17 @@ pub fn bytes_from_str(a: &str) -> Vec<u8> {
     let f = a.parse::<BigInt>().unwrap();
     let bs = f.to_bytes_le();
     bs.1
+}
+
+pub fn bits_from_big(s: Integer) -> Vec<u8> {
+    let mut n_bits = s.to_digits::<u8>(Order::LsfLe)
+        .iter()
+        .flat_map(|byte| (0..8).map(move |i| (byte >> i) & 1))
+        .collect::<Vec<u8>>();
+    let actual_length = s.significant_bits() as usize;
+    n_bits.truncate(actual_length);
+
+    n_bits
 }
 
 pub fn binary_from_num(a: u32) -> Vec<u32> {
@@ -349,19 +375,30 @@ pub fn big_bits_len(a: Integer) -> usize {
 
 /// Return the random number between `a` and `b`.
 pub fn generate_random_range(a: Integer, b: Integer) -> Integer {
-    // TODO: do without conversion to BigInt and back.
-    let a: BigInt = a.to_string().parse().expect("p should be a number");
-    let b: BigInt = b.to_string().parse().expect("p should be a number");
-    let p = generate_random_range_big_int(a, b);
-    let r = p.to_str_radix(16);
+    let mut a_digits = a.to_digits::<u8>(Order::MsfLe);
+    a_digits.reverse();
+    let a1 = BigInt::from_bytes_le(Sign::Plus, &a_digits);
 
-    Integer::from_str_radix(&r, 16).unwrap()
+    let mut b_digits = b.to_digits::<u8>(Order::MsfLe);
+    b_digits.reverse();
+    let b1 = BigInt::from_bytes_le(Sign::Plus, &b_digits);
+
+    let p = generate_random_range_big_int(a1, b1);
+    let digits = p.to_u64_digits().1;
+    Integer::from_digits(&digits, Order::LsfLe)
 }
 
 /// Return the bytes of big integer.
 pub fn big_to_bytes(a: Integer) -> Vec<u8> {
-    let b: BigInt = a.to_string().parse().expect("p should be a number");
-    b.to_bytes_le().1
+    let mut digits = a.to_digits::<u8>(Order::MsfLe);
+    digits.reverse();
+
+    // TODO: constant-time
+    if digits.len() == 0 {
+        digits.push(0);
+    }
+    
+    digits
 }
 
 /// Return the random prime of bit length `bitsize`.
@@ -372,8 +409,12 @@ pub fn generate_random_prime(bitsize: usize, requires3mod4: bool) -> Integer {
 
     loop {
         p = rng.gen_prime_exact(bitsize, None);
-        let r = p.to_str_radix(16);
-        let b = Integer::from_str_radix(&r, 16).unwrap();
+        // let r = p.to_str_radix(16);
+        // let b = Integer::from_str_radix(&r, 16).unwrap();
+
+        let digits = p.to_u64_digits();
+        let b = Integer::from_digits(&digits, Order::LsfLe);
+
         if !requires3mod4 || b.clone().div_rem(Integer::from(4)).1 == Integer::from(3) {
             return b;
         }
