@@ -128,7 +128,7 @@ pub fn params64() {
 
     let ideal = klapoti.secret();
 
-    klapoti.act(ideal, 39, strategy.to_vec());
+    klapoti.act(ideal, 75, strategy.to_vec());
 }
 
 pub fn params128() {
@@ -227,7 +227,7 @@ pub fn params128() {
 
     let ideal = klapoti.secret();
 
-    klapoti.act(ideal, 36, strategy.to_vec());
+    klapoti.act(ideal, 80, strategy.to_vec());
 }
 
 pub fn params256() {
@@ -325,7 +325,7 @@ pub fn params256() {
 
     let ideal = klapoti.secret();
 
-    klapoti.act(ideal, 36, strategy.to_vec());
+    klapoti.act(ideal, 180, strategy.to_vec());
 }
 
 
