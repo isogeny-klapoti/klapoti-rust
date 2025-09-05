@@ -59,7 +59,8 @@ macro_rules! define_klapoti {
 
             // how to use dlog for 2^t:
             let t = 5;
-            let (w1, ok) = curve.weil_pairing_2exp(t, &P, &Q);
+            // let (w1, ok) = curve.weil_pairing_2exp(t, &P, &Q);
+            let (w1, ok) = curve.weil_pairing_2exp(246, &P, &Q);
             assert_eq!(ok, 0xFFFFFFFF);
 
 
@@ -289,9 +290,13 @@ macro_rules! define_klapoti {
                 let P1P2 = CouplePoint::new(&norm_b_P, &gammaP);
                 let Q1Q2 = CouplePoint::new(&norm_b_Q, &gammaQ);
 
+                let inf = Point::INFINITY;
+
                 let image_points = vec![
-                    CouplePoint::new(&self.two_dim.P, &self.two_dim.Q),
-                    CouplePoint::new(&self.two_dim.omegaP, &self.two_dim.omegaQ),
+                    // CouplePoint::new(&self.two_dim.P, &self.two_dim.Q),
+                    // CouplePoint::new(&self.two_dim.omegaP, &self.two_dim.omegaQ),
+                    CouplePoint::new(&self.two_dim.P, &inf), // (f1(P), f2(P)) or ... ?
+                    CouplePoint::new(&self.two_dim.Q, &inf), // (f1(Q), f2(Q)) or ... ?
                 ];
 
                 let (product, points) = product_isogeny(
@@ -304,6 +309,64 @@ macro_rules! define_klapoti {
                 );
 
                 println!("2: {:?}", second_part.elapsed());
+
+                println!("");
+                println!("===============");
+
+                // TODO: replace hard-coded 246
+                let (w1, ok1) = self.two_dim.curve.weil_pairing_2exp(246, &self.two_dim.P, &self.two_dim.Q);
+                assert_eq!(ok1, 0xFFFFFFFF);
+                println!("w1: {:?}", w1);
+                println!("");
+                println!("-----------");
+
+                let (w2, ok21) = product.E1.weil_pairing_2exp(246, &points[0].P1, &points[1].P1);
+                // assert_eq!(ok21, 0xFFFFFFFF);
+                println!("ok21: {:?}", ok21);
+
+                let (w2, ok22) = product.E1.weil_pairing_2exp(246, &points[0].P1, &points[1].P2);
+                println!("ok22: {:?}", ok22);
+
+                let (w2, ok23) = product.E1.weil_pairing_2exp(246, &points[0].P2, &points[1].P1);
+                println!("ok23: {:?}", ok23);
+
+                let (w2, ok24) = product.E1.weil_pairing_2exp(246, &points[0].P2, &points[1].P2);
+                println!("ok24: {:?}", ok24);
+
+                println!("");
+                println!("-----------");
+
+
+
+
+                println!("");
+                println!("norm_b: {:?}", norm_b);
+                println!("");
+
+                // let norm_b_u32 = norm_b.to_u32_wrapping();
+                let bytes = big_to_bytes(norm_b.clone());
+                let foo = w2.pow(&bytes, bytes.len() * 8);
+
+
+                println!("foo: {:?}", foo);
+                println!("");
+                println!("--------");
+
+
+
+                println!("");
+                println!("norm_b: {:?}", norm_b);
+                println!("");
+
+                // let norm_b_u32 = norm_b.to_u32_wrapping();
+                let bytes = big_to_bytes(norm_b.clone());
+                let foo = w2.pow(&bytes, bytes.len() * 8);
+
+
+                println!("foo: {:?}", foo);
+                println!("");
+                println!("--------");
+
 
                 PubKey::new(product, points[0], points[1])
             }
