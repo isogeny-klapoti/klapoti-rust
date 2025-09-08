@@ -117,6 +117,7 @@ def optimised_strategy(n, M, S, I):
 
 # 64
 # data = [241, 37, 31, 2028]
+data = [246, 37, 31, 2028]
 
 # 128
 # data = [410, 115, 86, 4662]
@@ -137,7 +138,7 @@ def optimised_strategy(n, M, S, I):
 # data = [4722, 31497, 15469, 787660]
 
 # 2048
-data = [6219, 58426, 27475, 1441700]
+# data = [6219, 58426, 27475, 1441700]
 
 strat = optimised_strategy(*data)
 print("")

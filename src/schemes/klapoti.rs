@@ -191,7 +191,7 @@ macro_rules! define_klapoti {
                             qa.clone(),
                             quaternion_order.clone(),
                             k,
-                            e2,
+                            e2 - 3, // TODO
                         );
                         if ok {
                             found = true;
@@ -239,7 +239,7 @@ macro_rules! define_klapoti {
 
                 // The ideal b * c.conj() is principal. The generator is gamma_b.conjugate() * gamma_c / ideal.norm().
 
-                let mut gamma = (gamma_b.conjugate() * gamma_c) / ideal_norm;
+                let mut gamma = (gamma_b.conjugate() * gamma_c.clone()) / ideal_norm.clone();
                 gamma = gamma.normalize();
 
                 let gamma_quadratic = QuadraticOrderEl::new(
@@ -287,8 +287,21 @@ macro_rules! define_klapoti {
 
                 let ell_product = EllipticProduct::new(&self.two_dim.curve, &self.two_dim.curve);
 
+                // TODO
+                let fe = 1;
+                let PP1 = self.two_dim.curve.mul_small(&norm_b_P, fe);
+                let PP2 = self.two_dim.curve.mul_small(&gammaP, fe);
+
+                let QQ1 = self.two_dim.curve.mul_small(&norm_b_Q, fe);
+                let QQ2 = self.two_dim.curve.mul_small(&gammaQ, fe);
+
+                /*
                 let P1P2 = CouplePoint::new(&norm_b_P, &gammaP);
                 let Q1Q2 = CouplePoint::new(&norm_b_Q, &gammaQ);
+                */
+                let P1P2 = CouplePoint::new(&PP1, &PP2);
+                let Q1Q2 = CouplePoint::new(&QQ1, &QQ2);
+
 
                 let inf = Point::INFINITY;
 
@@ -297,6 +310,8 @@ macro_rules! define_klapoti {
                     // CouplePoint::new(&self.two_dim.omegaP, &self.two_dim.omegaQ),
                     CouplePoint::new(&self.two_dim.P, &inf), // (f1(P), f2(P)) or ... ?
                     CouplePoint::new(&self.two_dim.Q, &inf), // (f1(Q), f2(Q)) or ... ?
+                    CouplePoint::new(&inf, &self.two_dim.P),
+                    CouplePoint::new(&inf, &self.two_dim.Q),
                 ];
 
                 let (product, points) = product_isogeny(
@@ -310,60 +325,129 @@ macro_rules! define_klapoti {
 
                 println!("2: {:?}", second_part.elapsed());
 
+                let three = Fp::ONE + Fp::ONE + Fp::ONE;
+                let four = Fq::ONE + Fq::ONE + Fq::ONE + Fq::ONE;
+                let twoh = Fq::new(&Fp::from_i64(256), &Fp::ZERO);
+
                 println!("");
                 println!("===============");
-
-                // TODO: replace hard-coded 246
-                let (w1, ok1) = self.two_dim.curve.weil_pairing_2exp(246, &self.two_dim.P, &self.two_dim.Q);
-                assert_eq!(ok1, 0xFFFFFFFF);
-                println!("w1: {:?}", w1);
+                println!("e2: {}", e2);
                 println!("");
+                println!("E1: {}", product.E1);
+                let A = product.E1.A.clone();
+                let a2 = A.clone() * A.clone();
+                println!("A: {}", a2);
+                println!("");
+                let num = (a2.clone() - Fq::new(&three, &Fp::ZERO)).clone();
+                let num = num.clone() * num.clone() * num; // (A^2 - 3)^3
+                let denom = a2 - four;
+                let jinv1 = twoh * num / denom;
+                println!("");
+                println!("E1 j-invariant: {}", jinv1);
+
+                println!("");
+                println!("E2: {}", product.E2);
+                let A = product.E2.A.clone();
+                let a2 = A.clone() * A.clone();
+                println!("A: {}", a2);
+                println!("");
+                let num = (a2.clone() - Fq::new(&three, &Fp::ZERO)).clone();
+                let num = num.clone() * num.clone() * num; // (A^2 - 3)^3
+                let denom = a2 - four;
+                let jinv2 = twoh * num / denom;
+                println!("");
+                println!("E2 j-invariant: {}", jinv2);
+
+                println!("");
+                println!("");
+
+                let ee = 246;
+                // TODO: replace hard-coded 246
+
+                let (w1, ok1) = self.two_dim.curve.weil_pairing_2exp(ee, &self.two_dim.P, &self.two_dim.Q);
+                assert_eq!(ok1, 0xFFFFFFFF);
                 println!("-----------");
 
-                let (w2, ok21) = product.E1.weil_pairing_2exp(246, &points[0].P1, &points[1].P1);
+                println!("??????????????????????????");
+                println!("");
+                println!("points[0].P1: {}", &points[0].P1);
+                println!("is inf: {}", &points[0].P1.isinfinity());
+                println!("");
+                println!("points[1].P1: {}", &points[1].P1);
+                println!("is inf: {}", &points[1].P1.isinfinity());
+                println!("");
+                println!("");
+
+                let (w2, ok21) = product.E1.weil_pairing_2exp(ee, &points[0].P1, &points[1].P1);
                 // assert_eq!(ok21, 0xFFFFFFFF);
                 println!("ok21: {:?}", ok21);
 
-                let (w2, ok22) = product.E1.weil_pairing_2exp(246, &points[0].P1, &points[1].P2);
+                /*
+                let (w2, ok22) = product.E1.weil_pairing_2exp(ee, &points[0].P1, &points[1].P2);
                 println!("ok22: {:?}", ok22);
 
-                let (w2, ok23) = product.E1.weil_pairing_2exp(246, &points[0].P2, &points[1].P1);
+                let (w2, ok23) = product.E1.weil_pairing_2exp(ee, &points[0].P2, &points[1].P1);
                 println!("ok23: {:?}", ok23);
 
-                let (w2, ok24) = product.E1.weil_pairing_2exp(246, &points[0].P2, &points[1].P2);
+                let (w2, ok24) = product.E1.weil_pairing_2exp(ee, &points[0].P2, &points[1].P2);
                 println!("ok24: {:?}", ok24);
+                */
+
+
+                let (w22, ok31) = product.E1.weil_pairing_2exp(ee, &points[2].P1, &points[3].P1);
+                println!("ok31: {:?}", ok31);
+
+                /*
+                let (w22, ok32) = product.E1.weil_pairing_2exp(ee, &points[2].P1, &points[3].P2);
+                println!("ok32: {:?}", ok32);
+
+                let (w22, ok33) = product.E1.weil_pairing_2exp(ee, &points[2].P2, &points[3].P1);
+                println!("ok33: {:?}", ok33);
+
+                let (w22, ok34) = product.E1.weil_pairing_2exp(ee, &points[2].P2, &points[3].P2);
+                println!("ok34: {:?}", ok34);
+                */
+
 
                 println!("");
                 println!("-----------");
 
-
-
-
                 println!("");
                 println!("norm_b: {:?}", norm_b);
-                println!("");
 
                 // let norm_b_u32 = norm_b.to_u32_wrapping();
-                let bytes = big_to_bytes(norm_b.clone());
-                let foo = w2.pow(&bytes, bytes.len() * 8);
+                let bytes1 = big_to_bytes(norm_b.clone());
+                let foo1 = w2.pow(&bytes1, bytes1.len() * 8);
 
-
-                println!("foo: {:?}", foo);
-                println!("");
-                println!("--------");
-
-
-
-                println!("");
-                println!("norm_b: {:?}", norm_b);
+                let norm_c = gamma_c.reduced_norm() / ideal_norm.clone();
+                let norm_c = norm_c.numer();
+ 
+                println!("norm_c: {:?}", norm_c);
                 println!("");
 
-                // let norm_b_u32 = norm_b.to_u32_wrapping();
-                let bytes = big_to_bytes(norm_b.clone());
-                let foo = w2.pow(&bytes, bytes.len() * 8);
+                let bytes2 = big_to_bytes(norm_c.clone());
+                let foo2 = w2.pow(&bytes2, bytes2.len() * 8);
 
+                println!("");
+                println!("bytes1: {:?}", bytes1);
+                println!("");
 
-                println!("foo: {:?}", foo);
+                println!("w1: {:?}", w1);
+                println!("w1: {}", w1);
+                println!("");
+
+                // Why is w2 = 1 ????????????????
+                println!("w2: {:?}", w2);
+                println!("w2: {}", w2);
+                println!("");
+
+                println!("w22: {:?}", w22);
+                println!("w22: {}", w22);
+                println!("");
+
+                println!("foo1: {:?}", foo1);
+                println!("");
+                println!("foo2: {:?}", foo2);
                 println!("");
                 println!("--------");
 
