@@ -8,7 +8,7 @@ macro_rules! define_klapoti {
         use crate::quaternion::quaternion_algebra::{QuatAlg, QuatAlgEl};
         use crate::quaternion::quaternion_ideal::QuaternionIdeal;
         use crate::quaternion::quaternion_order::QuaternionOrder;
-        use crate::util::big_to_bytes;
+        use crate::util::{big_to_bytes, bytes_from_str};
         use std::time::Instant;
         use num_traits::Pow;
 
@@ -123,6 +123,18 @@ macro_rules! define_klapoti {
             pub two_dim: TwoDim,
         }
 
+        // TODO: remove
+        fn point_order_2e(E: Curve, P: Point, e2: u32) -> u32 {
+            let mut T = P.clone();
+            for i in 1..=e2 {
+                T = E.double(&T);
+                if T.isinfinity() == 0xFFFFFFFF {
+                    return i; // 2^i
+                }
+            }
+            0 // Not found, not 2^k order
+        }
+
         impl Klapoti {
             pub fn new(quadratic_order: QuadraticOrder, two_dim: TwoDim) -> Self {
                 Self {
@@ -191,7 +203,7 @@ macro_rules! define_klapoti {
                             qa.clone(),
                             quaternion_order.clone(),
                             k,
-                            e2 - 3, // TODO
+                            e2 - 4, // TODO (-3 means as len(strategy))
                         );
                         if ok {
                             found = true;
@@ -288,12 +300,119 @@ macro_rules! define_klapoti {
                 let ell_product = EllipticProduct::new(&self.two_dim.curve, &self.two_dim.curve);
 
                 // TODO
-                let fe = 1;
+                let fe = 2;
                 let PP1 = self.two_dim.curve.mul_small(&norm_b_P, fe);
                 let PP2 = self.two_dim.curve.mul_small(&gammaP, fe);
 
                 let QQ1 = self.two_dim.curve.mul_small(&norm_b_Q, fe);
                 let QQ2 = self.two_dim.curve.mul_small(&gammaQ, fe);
+
+                
+                // debugging:
+                let Px = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "1226675694967031461374928861727629624321973179136998394931427064315685300027",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "471568703724115901341749099134027127035832042322203601406777353603167167423",
+                    )),
+                );
+
+                let Py = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "179034482713300109747244485124295104087449802996181620780847970959337093146",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "58543252801583054722328152627939179434526951791836409861241150384998494766",
+                    )),
+                );
+
+                let PP1 = Point {
+                    X: Px,
+                    Y: Py,
+                    Z: Fq::ONE,
+                };
+
+
+                let Px = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "248866086836950554089991015799891182287653190005755700884321151592099782683",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "772889050356731422791785356322718523227084085977542952049919233746522369224",
+                    )),
+                );
+
+                let Py = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "1161689354733617193117791785489170058103983334851333142158200102813361014218",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "225606592317617417437782069958536757110214474710618758819402131751274917838",
+                    )),
+                );
+
+                let PP2 = Point {
+                    X: Px,
+                    Y: Py,
+                    Z: Fq::ONE,
+                };
+
+                
+
+
+                let Px = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "992421968594890011776270619229553176930598234749523157064938473587440745464",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "969194047278448494096213753293615748421499179500185132821712116215602633182",
+                    )),
+                );
+
+                let Py = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "1149529860453854205301668921391359438337339035475115004428461471504455462297",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "529273523585589089815020094699351234219495679752062971803541093163272101874",
+                    )),
+                );
+
+                let QQ1 = Point {
+                    X: Px,
+                    Y: Py,
+                    Z: Fq::ONE,
+                };
+
+
+
+
+                let Px = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "622853989094175376894443140750699963304765504086282445457642657788184742917",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "474116499916259893879273703802917722069820580712357834431164776605527274420",
+                    )),
+                );
+
+                let Py = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "450869840280056572265882240833676072037383504959968879400445214195204430674",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "911962211012438493764604134504677168289939912128973267283606877409260575220",
+                    )),
+                );
+
+                let QQ2 = Point {
+                    X: Px,
+                    Y: Py,
+                    Z: Fq::ONE,
+                };
+
+                
 
                 /*
                 let P1P2 = CouplePoint::new(&norm_b_P, &gammaP);
@@ -301,6 +420,26 @@ macro_rules! define_klapoti {
                 */
                 let P1P2 = CouplePoint::new(&PP1, &PP2);
                 let Q1Q2 = CouplePoint::new(&QQ1, &QQ2);
+
+
+                let e22 = 246; // TODO
+
+                let order_foo = point_order_2e(self.two_dim.curve, self.two_dim.P, e22);
+                let order_pp1 = point_order_2e(self.two_dim.curve, PP1, e22);
+                let order_pp2 = point_order_2e(self.two_dim.curve, PP2, e22);
+                let order_qq1 = point_order_2e(self.two_dim.curve, QQ1, e22);
+                let order_qq2 = point_order_2e(self.two_dim.curve, QQ2, e22);
+  
+                println!("");
+                println!("");
+                println!("order_foo: {}", order_foo);
+                println!("order_pp1: {}", order_pp1);
+                println!("order_pp2: {}", order_pp2);
+                println!("order_qq1: {}", order_qq1);
+                println!("order_qq2: {}", order_qq2);
+                println!("");
+
+
 
 
                 let inf = Point::INFINITY;
@@ -314,6 +453,19 @@ macro_rules! define_klapoti {
                     CouplePoint::new(&inf, &self.two_dim.Q),
                 ];
 
+                println!("");
+                println!("-----------");
+
+                println!("");
+                println!("norm_b: {:?}", norm_b);
+
+                let norm_c = gamma_c.reduced_norm() / ideal_norm.clone();
+                let norm_c = norm_c.numer();
+ 
+                println!("norm_c: {:?}", norm_c);
+                println!("");
+
+
                 let (product, points) = product_isogeny(
                     &ell_product,
                     &P1P2,
@@ -324,6 +476,16 @@ macro_rules! define_klapoti {
                 );
 
                 println!("2: {:?}", second_part.elapsed());
+
+                let goo1 = point_order_2e(product.E1, points[0].P1, e22);
+
+                println!("");
+                println!("goo1: {}", goo1);
+                println!("");
+                println!("");
+                println!("");
+                println!("");
+
 
                 let three = Fp::ONE + Fp::ONE + Fp::ONE;
                 let four = Fq::ONE + Fq::ONE + Fq::ONE + Fq::ONE;
@@ -408,23 +570,10 @@ macro_rules! define_klapoti {
                 println!("ok34: {:?}", ok34);
                 */
 
-
-                println!("");
-                println!("-----------");
-
-                println!("");
-                println!("norm_b: {:?}", norm_b);
-
                 // let norm_b_u32 = norm_b.to_u32_wrapping();
                 let bytes1 = big_to_bytes(norm_b.clone());
                 let foo1 = w2.pow(&bytes1, bytes1.len() * 8);
-
-                let norm_c = gamma_c.reduced_norm() / ideal_norm.clone();
-                let norm_c = norm_c.numer();
  
-                println!("norm_c: {:?}", norm_c);
-                println!("");
-
                 let bytes2 = big_to_bytes(norm_c.clone());
                 let foo2 = w2.pow(&bytes2, bytes2.len() * 8);
 
