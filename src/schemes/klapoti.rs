@@ -301,118 +301,186 @@ macro_rules! define_klapoti {
 
                 // TODO
                 let fe = 2;
-                let PP1 = self.two_dim.curve.mul_small(&norm_b_P, fe);
-                let PP2 = self.two_dim.curve.mul_small(&gammaP, fe);
+                let mut PP1 = self.two_dim.curve.mul_small(&norm_b_P, fe);
+                let mut PP2 = self.two_dim.curve.mul_small(&gammaP, fe);
 
-                let QQ1 = self.two_dim.curve.mul_small(&norm_b_Q, fe);
-                let QQ2 = self.two_dim.curve.mul_small(&gammaQ, fe);
+                let mut QQ1 = self.two_dim.curve.mul_small(&norm_b_Q, fe);
+                let mut QQ2 = self.two_dim.curve.mul_small(&gammaQ, fe);
 
-                
                 // debugging:
                 let Px = Fq::new(
                     &Fp::decode_reduce(&bytes_from_str(
-                        "1226675694967031461374928861727629624321973179136998394931427064315685300027",
+                        "231319683193784361178065895969089206187046582670278742547957210059471570499",
                     )),
                     &Fp::decode_reduce(&bytes_from_str(
-                        "471568703724115901341749099134027127035832042322203601406777353603167167423",
+                        "529809996034592879039223866587512932379594476878130538254301034650887259901",
                     )),
                 );
 
                 let Py = Fq::new(
                     &Fp::decode_reduce(&bytes_from_str(
-                        "179034482713300109747244485124295104087449802996181620780847970959337093146",
+                        "834082002567874923954328940534746284364984467068233395520457635369292555844",
                     )),
                     &Fp::decode_reduce(&bytes_from_str(
-                        "58543252801583054722328152627939179434526951791836409861241150384998494766",
+                        "1120937564722720020144805617181830123930513623560148166568336424000060610691",
                     )),
                 );
 
-                let PP1 = Point {
+                PP1 = Point {
                     X: Px,
                     Y: Py,
                     Z: Fq::ONE,
                 };
-
 
                 let Px = Fq::new(
                     &Fp::decode_reduce(&bytes_from_str(
-                        "248866086836950554089991015799891182287653190005755700884321151592099782683",
+                        "578823016281151159174993821952694858657363505701646684448685089940923726994",
                     )),
                     &Fp::decode_reduce(&bytes_from_str(
-                        "772889050356731422791785356322718523227084085977542952049919233746522369224",
+                        "1041716727101504509244399815602000213355936356873055344964066480232160845431",
                     )),
                 );
 
                 let Py = Fq::new(
                     &Fp::decode_reduce(&bytes_from_str(
-                        "1161689354733617193117791785489170058103983334851333142158200102813361014218",
+                        "118498137982743644133216402026402994592894878420283913269190821306930218539",
                     )),
                     &Fp::decode_reduce(&bytes_from_str(
-                        "225606592317617417437782069958536757110214474710618758819402131751274917838",
+                        "1130875336632621033455040920913613152796382466125243301512426158999792042863",
                     )),
                 );
 
-                let PP2 = Point {
+                PP2 = Point {
                     X: Px,
                     Y: Py,
                     Z: Fq::ONE,
                 };
+ 
+ 
+                let Px = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "30637622338832805313988179055853838777900158065828333823307340006935338989",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "702605966126392969703035644792283472079528603959082722249224112517112923549",
+                    )),
+                );
 
-                
+                let Py = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "1221542539537052639229363686476730588410441009384909638836247411307476203364",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "901396571729348810495233009075553768882637227689147190278930216852526634560",
+                    )),
+                );
 
+                QQ1 = Point {
+                    X: Px,
+                    Y: Py,
+                    Z: Fq::ONE,
+                };
 
                 let Px = Fq::new(
                     &Fp::decode_reduce(&bytes_from_str(
-                        "992421968594890011776270619229553176930598234749523157064938473587440745464",
+                        "171534663445015757977844798588443778627788400730862518771393481207975713609",
                     )),
                     &Fp::decode_reduce(&bytes_from_str(
-                        "969194047278448494096213753293615748421499179500185132821712116215602633182",
+                        "492942537896085780909541529089768353745381815570986464552817584312909913537",
                     )),
                 );
 
                 let Py = Fq::new(
                     &Fp::decode_reduce(&bytes_from_str(
-                        "1149529860453854205301668921391359438337339035475115004428461471504455462297",
+                        "241469789340884108418776662585687599650255082887051303392351664210746116159",
                     )),
                     &Fp::decode_reduce(&bytes_from_str(
-                        "529273523585589089815020094699351234219495679752062971803541093163272101874",
+                        "572138342113324920622548051018014229717506098139519115787994670188258823105",
                     )),
                 );
 
-                let QQ1 = Point {
+                QQ2 = Point {
                     X: Px,
                     Y: Py,
                     Z: Fq::ONE,
                 };
 
 
+                let d1 = self.two_dim.curve.double(&PP1);
+                let d2 = self.two_dim.curve.double(&PP2);
+                println!("");
+                println!("");
+                println!("");
+                println!("d1: {}", d1.X / d1.Z);
+                println!("");
+                println!("d2: {}", d2.X / d2.Z);
+                println!("");
+
+                println!("+++++++????????????????????????????????????");
+                println!("+++++++????????????????????????????????????");
+                println!("+++++++????????????????????????????????????");
+                println!("");
+                println!("");
+                println!("E: {}", self.two_dim.curve);
+                println!("");
+                println!("");
+                println!("PP1: {}", PP1);
+                println!("");
+                println!("PP2: {}", PP2);
+                println!("");
+                println!("QQ1: {}", QQ1);
+                println!("");
+                println!("QQ2: {}", QQ2);
+                println!("");
+                println!("");
 
 
-                let Px = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "622853989094175376894443140750699963304765504086282445457642657788184742917",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "474116499916259893879273703802917722069820580712357834431164776605527274420",
-                    )),
-                );
 
-                let Py = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "450869840280056572265882240833676072037383504959968879400445214195204430674",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "911962211012438493764604134504677168289939912128973267283606877409260575220",
-                    )),
-                );
+                // while not 2^(e+1) * (ker[0][0] - ker[0][1]):
 
-                let QQ2 = Point {
-                    X: Px,
-                    Y: Py,
-                    Z: Fq::ONE,
-                };
+                let mut T = self.two_dim.curve.sub(&PP1, &PP2);
+                for _ in 0..=e2+2 {
+                // for _ in 0..=e2+1 {
+                    T = self.two_dim.curve.double(&T);
+                }
+                if T.isinfinity() == 0xFFFFFFFF {
+                    println!("===================");
+                }
 
-                
+                let pp1 = PP1.clone();
+                let qq1 = QQ1.clone();
+
+                PP1 = self.two_dim.curve.add(&PP1, &PP2);
+                PP2 = self.two_dim.curve.sub(&pp1, &PP2);
+
+                QQ1 = self.two_dim.curve.add(&QQ1, &QQ2);
+                QQ2 = self.two_dim.curve.sub(&qq1, &QQ2);
+
+                println!("????????????????????????????????????");
+                println!("????????????????????????????????????");
+                println!("????????????????????????????????????");
+                println!("");
+                println!("PP1: {} {}", PP1.X / PP1.Z, PP1.Y / PP1.Z);
+                println!("");
+                println!("PP2: {}", PP2.X / PP2.Z);
+                println!("");
+                println!("QQ1: {}", QQ1.X / QQ1.Z);
+                println!("");
+                println!("QQ2: {}", QQ2.X / QQ2.Z);
+                println!("");
+                println!("");
+
+
+
+                let mut T = self.two_dim.curve.sub(&PP1, &PP2);
+                // for _ in 0..=e2+2 {
+                for _ in 0..=e2+1 {
+                    T = self.two_dim.curve.double(&T);
+                }
+                if T.isinfinity() == 0xFFFFFFFF {
+                    println!("===================");
+                }
+
 
                 /*
                 let P1P2 = CouplePoint::new(&norm_b_P, &gammaP);
