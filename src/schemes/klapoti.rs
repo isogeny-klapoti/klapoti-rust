@@ -405,17 +405,6 @@ macro_rules! define_klapoti {
                     Z: Fq::ONE,
                 };
 
-
-                let d1 = self.two_dim.curve.double(&PP1);
-                let d2 = self.two_dim.curve.double(&PP2);
-                println!("");
-                println!("");
-                println!("");
-                println!("d1: {}", d1.X / d1.Z);
-                println!("");
-                println!("d2: {}", d2.X / d2.Z);
-                println!("");
-
                 println!("+++++++????????????????????????????????????");
                 println!("+++++++????????????????????????????????????");
                 println!("+++++++????????????????????????????????????");
@@ -434,28 +423,30 @@ macro_rules! define_klapoti {
                 println!("");
                 println!("");
 
+                let mut e = e2.clone(); // TODO
+                loop {
+                    let mut T = self.two_dim.curve.sub(&PP1, &PP2);
+                    println!("?????========????????");
+                    println!("e: {}", e);
+                    println!("");
+                    for _ in 0..=e+1 {
+                        T = self.two_dim.curve.double(&T);
+                    }
+                    if T.isinfinity() == 0xFFFFFFFF {
+                        let pp1 = PP1.clone();
+                        let qq1 = QQ1.clone();
 
+                        PP1 = self.two_dim.curve.add(&PP1, &PP2);
+                        PP2 = self.two_dim.curve.sub(&pp1, &PP2);
 
-                // while not 2^(e+1) * (ker[0][0] - ker[0][1]):
-
-                let mut T = self.two_dim.curve.sub(&PP1, &PP2);
-                for _ in 0..=e2+2 {
-                // for _ in 0..=e2+1 {
-                    T = self.two_dim.curve.double(&T);
+                        QQ1 = self.two_dim.curve.add(&QQ1, &QQ2);
+                        QQ2 = self.two_dim.curve.sub(&qq1, &QQ2);
+                        e -= 1;
+                    } else {
+                        break;
+                    }
                 }
-                if T.isinfinity() == 0xFFFFFFFF {
-                    println!("===================");
-                }
-
-                let pp1 = PP1.clone();
-                let qq1 = QQ1.clone();
-
-                PP1 = self.two_dim.curve.add(&PP1, &PP2);
-                PP2 = self.two_dim.curve.sub(&pp1, &PP2);
-
-                QQ1 = self.two_dim.curve.add(&QQ1, &QQ2);
-                QQ2 = self.two_dim.curve.sub(&qq1, &QQ2);
-
+                
                 println!("????????????????????????????????????");
                 println!("????????????????????????????????????");
                 println!("????????????????????????????????????");
@@ -469,17 +460,6 @@ macro_rules! define_klapoti {
                 println!("QQ2: {}", QQ2.X / QQ2.Z);
                 println!("");
                 println!("");
-
-
-
-                let mut T = self.two_dim.curve.sub(&PP1, &PP2);
-                // for _ in 0..=e2+2 {
-                for _ in 0..=e2+1 {
-                    T = self.two_dim.curve.double(&T);
-                }
-                if T.isinfinity() == 0xFFFFFFFF {
-                    println!("===================");
-                }
 
 
                 /*
@@ -506,8 +486,6 @@ macro_rules! define_klapoti {
                 println!("order_qq1: {}", order_qq1);
                 println!("order_qq2: {}", order_qq2);
                 println!("");
-
-
 
 
                 let inf = Point::INFINITY;
@@ -539,7 +517,8 @@ macro_rules! define_klapoti {
                     &P1P2,
                     &Q1Q2,
                     &image_points,
-                    e2 as usize,
+                    e2 as usize, // TODO
+                    // e as usize,
                     &strategy,
                 );
 
