@@ -8,9 +8,10 @@ macro_rules! define_klapoti {
         use crate::quaternion::quaternion_algebra::{QuatAlg, QuatAlgEl};
         use crate::quaternion::quaternion_ideal::QuaternionIdeal;
         use crate::quaternion::quaternion_order::QuaternionOrder;
-        use crate::util::{big_to_bytes, bytes_from_str};
+        use crate::util::{big_to_bytes, bytes_from_str, valuation};
         use std::time::Instant;
         use num_traits::Pow;
+        use std::collections::HashMap;
 
         /// Let O be an imaginary quadratic order with discriminant D and odd conductor f.
         /// Given an O-oriented supersingular elliptic curve (E, iota), take any omega from O such that O = Z[omega]
@@ -76,10 +77,9 @@ macro_rules! define_klapoti {
                 Q: Point,
                 omegaP: Point,
                 omegaQ: Point,
-                e: u32,
             ) -> Self {
 
-                canonicalize_orientation(&curve, &P, &Q, e); 
+                // canonicalize_orientation(&curve, &P, &Q, e); 
 
                 // replace curve, P, Q,...
 
@@ -151,14 +151,13 @@ macro_rules! define_klapoti {
                 &self,
                 ideal: QuadraticIdeal,
                 klpt_start_value: u32,
-                strategy: Vec<usize>,
+                strategies: HashMap<u32, Vec<usize>>,
+                valuation_2: u32,
             ) -> PubKey {
                 let start = Instant::now();
 
                 let disc_abs = self.quadratic_order.order_disc_abs.clone();
                 let qa = QuatAlg::new(-disc_abs.clone());
-
-                let e2 = strategy.len() as u32 + 1;
 
                 let basis = Matrix::zeros(4, 4);
                 // We use a quadratic order O = Z[(1 + theta)/2].
@@ -196,14 +195,14 @@ macro_rules! define_klapoti {
                 let mut gen_eq = QuatAlgEl::zero(qa.clone());
                 let mut found = false;
                 loop {
-                    for k in klpt_start_value..=e2 {
+                    for k in klpt_start_value..=valuation_2 {
                         let ok;
                         (ok, gen_eq) = klpt(
                             quaternion_ideal.clone(),
                             qa.clone(),
                             quaternion_order.clone(),
                             k,
-                            e2 - 4, // TODO (-3 means as len(strategy))
+                            valuation_2 - 2,
                         );
                         if ok {
                             found = true;
@@ -300,13 +299,14 @@ macro_rules! define_klapoti {
                 let ell_product = EllipticProduct::new(&self.two_dim.curve, &self.two_dim.curve);
 
                 // TODO
-                let fe = 2;
+                let fe = 1;
                 let mut PP1 = self.two_dim.curve.mul_small(&norm_b_P, fe);
                 let mut PP2 = self.two_dim.curve.mul_small(&gammaP, fe);
 
                 let mut QQ1 = self.two_dim.curve.mul_small(&norm_b_Q, fe);
                 let mut QQ2 = self.two_dim.curve.mul_small(&gammaQ, fe);
 
+                /*
                 // debugging:
                 let Px = Fq::new(
                     &Fp::decode_reduce(&bytes_from_str(
@@ -404,13 +404,27 @@ macro_rules! define_klapoti {
                     Y: Py,
                     Z: Fq::ONE,
                 };
+                */
+
+                let e22 = 246; // TODO
+
+                let order_pp1 = point_order_2e(self.two_dim.curve, PP1, e22);
+                let order_pp2 = point_order_2e(self.two_dim.curve, PP2, e22);
+                let order_qq1 = point_order_2e(self.two_dim.curve, QQ1, e22);
+                let order_qq2 = point_order_2e(self.two_dim.curve, QQ2, e22);
+  
+                println!("");
+                println!("111111111111111111111111111111");
+                println!("order_pp1: {}", order_pp1);
+                println!("order_pp2: {}", order_pp2);
+                println!("order_qq1: {}", order_qq1);
+                println!("order_qq2: {}", order_qq2);
+                println!("");
+
 
                 println!("+++++++????????????????????????????????????");
                 println!("+++++++????????????????????????????????????");
                 println!("+++++++????????????????????????????????????");
-                println!("");
-                println!("");
-                println!("E: {}", self.two_dim.curve);
                 println!("");
                 println!("");
                 println!("PP1: {}", PP1);
@@ -423,7 +437,27 @@ macro_rules! define_klapoti {
                 println!("");
                 println!("");
 
-                let mut e = e2.clone(); // TODO
+                println!("");
+                println!("-----------");
+
+                println!("");
+                println!("norm_b: {:?}", norm_b);
+
+
+                let norm_c = gamma_c.reduced_norm() / ideal_norm.clone();
+                let norm_c = norm_c.numer();
+ 
+                println!("norm_c: {}", norm_c);
+                println!("");
+
+                let e_start = valuation(Integer::from(norm_b) + Integer::from(norm_c), Integer::from(2)).0;
+                println!("e_start: {}", e_start);
+                println!("");
+
+
+
+                // let mut e = 235; // for the hardcoded points
+                let mut e = e_start as u32; // TODO
                 loop {
                     let mut T = self.two_dim.curve.sub(&PP1, &PP2);
                     println!("?????========????????");
@@ -432,6 +466,7 @@ macro_rules! define_klapoti {
                     for _ in 0..=e+1 {
                         T = self.two_dim.curve.double(&T);
                     }
+                    // T is now 2^(e+1) * (PP1 - PP2)
                     if T.isinfinity() == 0xFFFFFFFF {
                         let pp1 = PP1.clone();
                         let qq1 = QQ1.clone();
@@ -443,10 +478,11 @@ macro_rules! define_klapoti {
                         QQ2 = self.two_dim.curve.sub(&qq1, &QQ2);
                         e -= 1;
                     } else {
+                        // e += 1; // comment out for hardcoded points
                         break;
                     }
                 }
-                
+
                 println!("????????????????????????????????????");
                 println!("????????????????????????????????????");
                 println!("????????????????????????????????????");
@@ -460,6 +496,7 @@ macro_rules! define_klapoti {
                 println!("QQ2: {}", QQ2.X / QQ2.Z);
                 println!("");
                 println!("");
+                println!("e: {}", e);
 
 
                 /*
@@ -468,9 +505,6 @@ macro_rules! define_klapoti {
                 */
                 let P1P2 = CouplePoint::new(&PP1, &PP2);
                 let Q1Q2 = CouplePoint::new(&QQ1, &QQ2);
-
-
-                let e22 = 246; // TODO
 
                 let order_foo = point_order_2e(self.two_dim.curve, self.two_dim.P, e22);
                 let order_pp1 = point_order_2e(self.two_dim.curve, PP1, e22);
@@ -499,27 +533,14 @@ macro_rules! define_klapoti {
                     CouplePoint::new(&inf, &self.two_dim.Q),
                 ];
 
-                println!("");
-                println!("-----------");
-
-                println!("");
-                println!("norm_b: {:?}", norm_b);
-
-                let norm_c = gamma_c.reduced_norm() / ideal_norm.clone();
-                let norm_c = norm_c.numer();
- 
-                println!("norm_c: {:?}", norm_c);
-                println!("");
-
-
+                
                 let (product, points) = product_isogeny(
                     &ell_product,
                     &P1P2,
                     &Q1Q2,
                     &image_points,
-                    e2 as usize, // TODO
-                    // e as usize,
-                    &strategy,
+                    e as usize + 1,
+                    &strategies[&e],
                 );
 
                 println!("2: {:?}", second_part.elapsed());
@@ -540,7 +561,6 @@ macro_rules! define_klapoti {
 
                 println!("");
                 println!("===============");
-                println!("e2: {}", e2);
                 println!("");
                 println!("E1: {}", product.E1);
                 let A = product.E1.A.clone();
