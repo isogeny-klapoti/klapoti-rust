@@ -156,6 +156,11 @@ macro_rules! define_klapoti {
             ) -> PubKey {
                 let start = Instant::now();
 
+                println!("Secret ideal: {:?}", ideal);
+                println!("");
+                println!("");
+                println!("");
+
                 let disc_abs = self.quadratic_order.order_disc_abs.clone();
                 let qa = QuatAlg::new(-disc_abs.clone());
 
@@ -202,7 +207,8 @@ macro_rules! define_klapoti {
                             qa.clone(),
                             quaternion_order.clone(),
                             k,
-                            valuation_2 - 2,
+                            // valuation_2 - 2,
+                            valuation_2 - 4, // TODO
                         );
                         if ok {
                             found = true;
@@ -239,6 +245,35 @@ macro_rules! define_klapoti {
                 );
                 gamma_c = gamma_c.normalize();
 
+
+                // debugging:
+                // b = 212429136258825607442003980910103/2*ϑ + 2139406808314054351708384807370741215413211/2
+                // c = 320901084691429264365229604368521/2*ϑ + 1891550583917451125568406963096152862911271/2
+ 
+                /*
+                let mut gamma_b = QuatAlgEl::new(
+                    "2139406808314054351708384807370741215413211".big(),
+                    0.big(),
+                    "212429136258825607442003980910103".big(),
+                    0.big(),
+                    2.big(),
+                    qa.clone(),
+                );
+                // c = /2*ϑ + /2
+
+                let mut gamma_c = QuatAlgEl::new(
+                    "1891550583917451125568406963096152862911271".big(),
+                    0.big(),
+                    "320901084691429264365229604368521".big(),
+                    0.big(),
+                    2.big(),
+                    qa.clone(),
+                );
+                */
+                // end debugging
+
+
+
                 // TODO: divisions by 2 of gamma_b and gamma_c if needed
 
                 // The two ideals equivalent to the secret ideal `ideal` are then:
@@ -248,10 +283,31 @@ macro_rules! define_klapoti {
                 let norm_b = gamma_b.reduced_norm() / ideal_norm.clone();
                 let norm_b = norm_b.numer();
 
+                let norm_c = gamma_c.reduced_norm() / ideal_norm.clone();
+                let norm_c = norm_c.numer();
+
+                let norm_b = "58438361080824844447705309524405300287466208470838852885505490021894097".big();
+                let norm_c = "383273405113771237948119065661324328669404765748065886644896060301260847".big();
+
+
                 // The ideal b * c.conj() is principal. The generator is gamma_b.conjugate() * gamma_c / ideal.norm().
 
                 let mut gamma = (gamma_b.conjugate() * gamma_c.clone()) / ideal_norm.clone();
                 gamma = gamma.normalize();
+
+                // debugging:
+                // γ = -20288688018329473225021435959305296709945412321820288769788409*ϑ + 121674240231382447390343600696522992868503098003888816356270547948839390
+
+                let mut gamma = QuatAlgEl::new(
+                    "121674240231382447390343600696522992868503098003888816356270547948839390".big(),
+                    0.big(),
+                    "-20288688018329473225021435959305296709945412321820288769788409".big(),
+                    0.big(),
+                    1.big(),
+                    qa.clone(),
+                );
+
+
 
                 let gamma_quadratic = QuadraticOrderEl::new(
                     gamma.x.clone(),
@@ -262,28 +318,47 @@ macro_rules! define_klapoti {
 
                 let (u, v) = gamma_quadratic.express_with_el(self.two_dim.omega.clone());
 
-                let u_bytes = big_to_bytes(u);
-                let v_bytes = big_to_bytes(v);
+                println!("");
+                println!("u: {}", u.clone());
+                println!("");
+                println!("v: {}", v);
+                println!("");
 
-                let u_P = self
+                let u_bytes = big_to_bytes(u.clone());
+                let v_bytes = big_to_bytes(v.clone());
+
+                let mut u_P = self
                     .two_dim
                     .curve
                     .mul(&self.two_dim.P, &u_bytes, u_bytes.len() * 8);
-                let u_gammaP =
+                if u < 0.big() {
+                    u_P.set_neg();
+                }
+
+                let mut v_omegaP =
                     self.two_dim
                         .curve
                         .mul(&self.two_dim.omegaP, &v_bytes, v_bytes.len() * 8);
-                let gammaP = self.two_dim.curve.add(&u_P, &u_gammaP);
+                if v < 0.big() {
+                    v_omegaP.set_neg();
+                }
+                let gammaP = self.two_dim.curve.add(&u_P, &v_omegaP);
 
-                let u_Q = self
+                let mut u_Q = self
                     .two_dim
                     .curve
                     .mul(&self.two_dim.Q, &u_bytes, u_bytes.len() * 8);
-                let u_gammaQ =
+                if u < 0.big() {
+                    u_Q.set_neg();
+                }
+                let mut v_omegaQ =
                     self.two_dim
                         .curve
                         .mul(&self.two_dim.omegaQ, &v_bytes, v_bytes.len() * 8);
-                let gammaQ = self.two_dim.curve.add(&u_Q, &u_gammaQ);
+                if v < 0.big() {
+                    v_omegaQ.set_neg();
+                }
+                let gammaQ = self.two_dim.curve.add(&u_Q, &v_omegaQ);
 
                 let nb_bytes = big_to_bytes(norm_b.clone());
 
@@ -298,8 +373,32 @@ macro_rules! define_klapoti {
 
                 let ell_product = EllipticProduct::new(&self.two_dim.curve, &self.two_dim.curve);
 
+                println!("");
+                println!("uP: {}, {}", u_P.X / u_P.Z, u_P.Y / u_P.Z);
+                println!("");
+                println!("v*self.omegaP: {}, {}", v_omegaP.X / v_omegaP.Z, v_omegaP.Y / v_omegaP.Z);
+                println!("");
+
+                println!("");
+                println!("gammaP: {}, {}", gammaP.X / gammaP.Z, gammaP.Y / gammaP.Z);
+                println!("");
+                println!("gammaQ: {}, {}", gammaQ.X / gammaQ.Z, gammaQ.Y / gammaQ.Z);
+                println!("");
+                println!("");
+
+
+                println!("");
+                println!("====== 123 123 =======");
+                println!("");
+                println!("norm_b * P: {}", norm_b_P.X / norm_b_P.Z);
+                println!("");
+                println!("norm_b * Q: {}", norm_b_Q.X / norm_b_Q.Z);
+                println!("");
+                println!("");
+
+
                 // TODO
-                let fe = 1;
+                let fe = 64;
                 let mut PP1 = self.two_dim.curve.mul_small(&norm_b_P, fe);
                 let mut PP2 = self.two_dim.curve.mul_small(&gammaP, fe);
 
@@ -427,13 +526,13 @@ macro_rules! define_klapoti {
                 println!("+++++++????????????????????????????????????");
                 println!("");
                 println!("");
-                println!("PP1: {}", PP1);
+                println!("PP1: {}, {}", PP1.X / PP1.Z, PP1.Y / PP1.Z);
                 println!("");
-                println!("PP2: {}", PP2);
+                println!("PP2: {}, {}", PP2.X / PP2.Z, PP2.Y / PP2.Z);
                 println!("");
-                println!("QQ1: {}", QQ1);
+                println!("QQ1: {}, {}", QQ1.X / QQ1.Z, QQ1.Y / QQ1.Z);
                 println!("");
-                println!("QQ2: {}", QQ2);
+                println!("QQ2: {}, {}", QQ2.X / QQ2.Z, QQ2.Y / QQ2.Z);
                 println!("");
                 println!("");
 
@@ -442,15 +541,13 @@ macro_rules! define_klapoti {
 
                 println!("");
                 println!("norm_b: {:?}", norm_b);
-
-
-                let norm_c = gamma_c.reduced_norm() / ideal_norm.clone();
-                let norm_c = norm_c.numer();
  
                 println!("norm_c: {}", norm_c);
                 println!("");
 
-                let e_start = valuation(Integer::from(norm_b) + Integer::from(norm_c), Integer::from(2)).0;
+                
+                // let e_start = valuation(Integer::from(norm_b) + Integer::from(norm_c), Integer::from(2)).0;
+                let e_start = valuation(Integer::from(norm_b.clone()) + Integer::from(norm_c.clone()), Integer::from(2)).0;
                 println!("e_start: {}", e_start);
                 println!("");
 
@@ -463,19 +560,49 @@ macro_rules! define_klapoti {
                     println!("?????========????????");
                     println!("e: {}", e);
                     println!("");
-                    for _ in 0..=e+1 {
+                    println!("PP1 - PP2: {}, {}", T.X / T.Z, T.Y / T.Z);
+                    println!("");
+                    for _ in 0..e+1 {
                         T = self.two_dim.curve.double(&T);
                     }
+
+                    println!("");
+                    println!("----------------------");
+                    println!("");
+                    println!("");
+                    println!("T: {}, {}", T.X / T.Z, T.Y / T.Z);
+                    println!("");
                     // T is now 2^(e+1) * (PP1 - PP2)
                     if T.isinfinity() == 0xFFFFFFFF {
                         let pp1 = PP1.clone();
                         let qq1 = QQ1.clone();
+
+                        println!("==============================================");
+                        println!("");
+                        println!("PP1: {}, {}", PP1.X / PP1.Z, PP1.Y / PP1.Z);
+                        println!("");
+                        println!("PP2: {}", PP2.X / PP2.Z);
+                        println!("");
+                        println!("QQ1: {}", QQ1.X / QQ1.Z);
+                        println!("");
+                        println!("QQ2: {}", QQ2.X / QQ2.Z);
+                        println!("");
 
                         PP1 = self.two_dim.curve.add(&PP1, &PP2);
                         PP2 = self.two_dim.curve.sub(&pp1, &PP2);
 
                         QQ1 = self.two_dim.curve.add(&QQ1, &QQ2);
                         QQ2 = self.two_dim.curve.sub(&qq1, &QQ2);
+
+                        println!("PP1: {}, {}", PP1.X / PP1.Z, PP1.Y / PP1.Z);
+                        println!("");
+                        println!("PP2: {}", PP2.X / PP2.Z);
+                        println!("");
+                        println!("QQ1: {}", QQ1.X / QQ1.Z);
+                        println!("");
+                        println!("QQ2: {}", QQ2.X / QQ2.Z);
+                        println!("");
+
                         e -= 1;
                     } else {
                         // e += 1; // comment out for hardcoded points
@@ -485,15 +612,15 @@ macro_rules! define_klapoti {
 
                 println!("????????????????????????????????????");
                 println!("????????????????????????????????????");
-                println!("????????????????????????????????????");
+                println!("1????????????????????????????????????");
                 println!("");
-                println!("PP1: {} {}", PP1.X / PP1.Z, PP1.Y / PP1.Z);
+                println!("PP1: {}, {}", PP1.X / PP1.Z, PP1.Y / PP1.Z);
                 println!("");
-                println!("PP2: {}", PP2.X / PP2.Z);
+                println!("PP2: {}, {}", PP2.X / PP2.Z, PP2.Y / PP2.Z);
                 println!("");
-                println!("QQ1: {}", QQ1.X / QQ1.Z);
+                println!("QQ1: {}, {}", QQ1.X / QQ1.Z, QQ1.Y / QQ1.Z);
                 println!("");
-                println!("QQ2: {}", QQ2.X / QQ2.Z);
+                println!("QQ2: {}, {}", QQ2.X / QQ2.Z, QQ2.Y / QQ2.Z);
                 println!("");
                 println!("");
                 println!("e: {}", e);
@@ -539,8 +666,8 @@ macro_rules! define_klapoti {
                     &P1P2,
                     &Q1Q2,
                     &image_points,
-                    e as usize + 1,
-                    &strategies[&e],
+                    e as usize,
+                    &strategies[&(e-1)],
                 );
 
                 println!("2: {:?}", second_part.elapsed());
