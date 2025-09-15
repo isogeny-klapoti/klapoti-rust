@@ -8,7 +8,7 @@ macro_rules! define_klapoti {
         use crate::quaternion::quaternion_algebra::{QuatAlg, QuatAlgEl};
         use crate::quaternion::quaternion_ideal::QuaternionIdeal;
         use crate::quaternion::quaternion_order::QuaternionOrder;
-        use crate::util::{big_to_bytes, bytes_from_str, valuation};
+        use crate::util::{big_to_bytes, valuation};
         use std::time::Instant;
         use num_traits::Pow;
         use std::collections::HashMap;
@@ -156,11 +156,6 @@ macro_rules! define_klapoti {
             ) -> PubKey {
                 let start = Instant::now();
 
-                println!("Secret ideal: {:?}", ideal);
-                println!("");
-                println!("");
-                println!("");
-
                 let disc_abs = self.quadratic_order.order_disc_abs.clone();
                 let qa = QuatAlg::new(-disc_abs.clone());
 
@@ -207,8 +202,7 @@ macro_rules! define_klapoti {
                             qa.clone(),
                             quaternion_order.clone(),
                             k,
-                            // valuation_2 - 2,
-                            valuation_2 - 4, // TODO
+                            valuation_2 - 4, // - 2 - 2 because there is 2^2 factor in KLPT
                         );
                         if ok {
                             found = true;
@@ -245,37 +239,6 @@ macro_rules! define_klapoti {
                 );
                 gamma_c = gamma_c.normalize();
 
-
-                // debugging:
-                // b = 212429136258825607442003980910103/2*ϑ + 2139406808314054351708384807370741215413211/2
-                // c = 320901084691429264365229604368521/2*ϑ + 1891550583917451125568406963096152862911271/2
- 
-                /*
-                let mut gamma_b = QuatAlgEl::new(
-                    "2139406808314054351708384807370741215413211".big(),
-                    0.big(),
-                    "212429136258825607442003980910103".big(),
-                    0.big(),
-                    2.big(),
-                    qa.clone(),
-                );
-                // c = /2*ϑ + /2
-
-                let mut gamma_c = QuatAlgEl::new(
-                    "1891550583917451125568406963096152862911271".big(),
-                    0.big(),
-                    "320901084691429264365229604368521".big(),
-                    0.big(),
-                    2.big(),
-                    qa.clone(),
-                );
-                */
-                // end debugging
-
-
-
-                // TODO: divisions by 2 of gamma_b and gamma_c if needed
-
                 // The two ideals equivalent to the secret ideal `ideal` are then:
                 // b = ideal * gamma_b.conj() / norm(ideal)
                 // c = ideal * gamma_c.conj() / norm(ideal)
@@ -286,9 +249,8 @@ macro_rules! define_klapoti {
                 let norm_c = gamma_c.reduced_norm() / ideal_norm.clone();
                 let norm_c = norm_c.numer();
 
-                let norm_b = "58438361080824844447705309524405300287466208470838852885505490021894097".big();
-                let norm_c = "383273405113771237948119065661324328669404765748065886644896060301260847".big();
-
+                let norm_b = "6239060535384038814315237977926552234241175179157299965743536529565386415".big();
+                let norm_c = "828327723729498504017952025045121829068760408345175866742888275605092689".big();
 
                 // The ideal b * c.conj() is principal. The generator is gamma_b.conjugate() * gamma_c / ideal.norm().
 
@@ -296,17 +258,16 @@ macro_rules! define_klapoti {
                 gamma = gamma.normalize();
 
                 // debugging:
-                // γ = -20288688018329473225021435959305296709945412321820288769788409*ϑ + 121674240231382447390343600696522992868503098003888816356270547948839390
+                // γ = 20625035472988057144794502895490107944539927126002943274264167*ϑ + 2271594090668624426986453643681202482518102368076547285819432256121931442
 
                 let mut gamma = QuatAlgEl::new(
-                    "121674240231382447390343600696522992868503098003888816356270547948839390".big(),
+                    "2271594090668624426986453643681202482518102368076547285819432256121931442".big(),
                     0.big(),
-                    "-20288688018329473225021435959305296709945412321820288769788409".big(),
+                    "20625035472988057144794502895490107944539927126002943274264167".big(),
                     0.big(),
                     1.big(),
                     qa.clone(),
                 );
-
 
 
                 let gamma_quadratic = QuadraticOrderEl::new(
@@ -317,13 +278,6 @@ macro_rules! define_klapoti {
                 );
 
                 let (u, v) = gamma_quadratic.express_with_el(self.two_dim.omega.clone());
-
-                println!("");
-                println!("u: {}", u.clone());
-                println!("");
-                println!("v: {}", v);
-                println!("");
-
                 let u_bytes = big_to_bytes(u.clone());
                 let v_bytes = big_to_bytes(v.clone());
 
@@ -373,291 +327,84 @@ macro_rules! define_klapoti {
 
                 let ell_product = EllipticProduct::new(&self.two_dim.curve, &self.two_dim.curve);
 
-                println!("");
-                println!("uP: {}, {}", u_P.X / u_P.Z, u_P.Y / u_P.Z);
-                println!("");
-                println!("v*self.omegaP: {}, {}", v_omegaP.X / v_omegaP.Z, v_omegaP.Y / v_omegaP.Z);
-                println!("");
-
-                println!("");
-                println!("gammaP: {}, {}", gammaP.X / gammaP.Z, gammaP.Y / gammaP.Z);
-                println!("");
-                println!("gammaQ: {}, {}", gammaQ.X / gammaQ.Z, gammaQ.Y / gammaQ.Z);
-                println!("");
+                let e_start = valuation(Integer::from(norm_b.clone()) + Integer::from(norm_c.clone()), Integer::from(2)).0 as u32;
+                println!("e_start: {}", e_start);
                 println!("");
 
 
-                println!("");
-                println!("====== 123 123 =======");
-                println!("");
-                println!("norm_b * P: {}", norm_b_P.X / norm_b_P.Z);
-                println!("");
-                println!("norm_b * Q: {}", norm_b_Q.X / norm_b_Q.Z);
-                println!("");
-                println!("");
+                let fe = valuation_2 - 2 - e_start;
+                let fe = (2u64).pow(fe);
 
+                let fe = 4; // TODO: hardcoded for debugging
 
-                // TODO
-                let fe = 64;
                 let mut PP1 = self.two_dim.curve.mul_small(&norm_b_P, fe);
                 let mut PP2 = self.two_dim.curve.mul_small(&gammaP, fe);
 
                 let mut QQ1 = self.two_dim.curve.mul_small(&norm_b_Q, fe);
                 let mut QQ2 = self.two_dim.curve.mul_small(&gammaQ, fe);
 
-                /*
-                // debugging:
-                let Px = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "231319683193784361178065895969089206187046582670278742547957210059471570499",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "529809996034592879039223866587512932379594476878130538254301034650887259901",
-                    )),
-                );
+                fn h2(curve: &Curve, T1: &Point, T2: &Point) -> (Point, Point) {
+                    (curve.add(&T1, &T2), curve.sub(&T1, &T2))
+                }
 
-                let Py = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "834082002567874923954328940534746284364984467068233395520457635369292555844",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "1120937564722720020144805617181830123930513623560148166568336424000060610691",
-                    )),
-                );
-
-                PP1 = Point {
-                    X: Px,
-                    Y: Py,
-                    Z: Fq::ONE,
-                };
-
-                let Px = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "578823016281151159174993821952694858657363505701646684448685089940923726994",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "1041716727101504509244399815602000213355936356873055344964066480232160845431",
-                    )),
-                );
-
-                let Py = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "118498137982743644133216402026402994592894878420283913269190821306930218539",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "1130875336632621033455040920913613152796382466125243301512426158999792042863",
-                    )),
-                );
-
-                PP2 = Point {
-                    X: Px,
-                    Y: Py,
-                    Z: Fq::ONE,
-                };
- 
- 
-                let Px = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "30637622338832805313988179055853838777900158065828333823307340006935338989",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "702605966126392969703035644792283472079528603959082722249224112517112923549",
-                    )),
-                );
-
-                let Py = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "1221542539537052639229363686476730588410441009384909638836247411307476203364",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "901396571729348810495233009075553768882637227689147190278930216852526634560",
-                    )),
-                );
-
-                QQ1 = Point {
-                    X: Px,
-                    Y: Py,
-                    Z: Fq::ONE,
-                };
-
-                let Px = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "171534663445015757977844798588443778627788400730862518771393481207975713609",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "492942537896085780909541529089768353745381815570986464552817584312909913537",
-                    )),
-                );
-
-                let Py = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "241469789340884108418776662585687599650255082887051303392351664210746116159",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "572138342113324920622548051018014229717506098139519115787994670188258823105",
-                    )),
-                );
-
-                QQ2 = Point {
-                    X: Px,
-                    Y: Py,
-                    Z: Fq::ONE,
-                };
-                */
-
-                let e22 = 246; // TODO
-
-                let order_pp1 = point_order_2e(self.two_dim.curve, PP1, e22);
-                let order_pp2 = point_order_2e(self.two_dim.curve, PP2, e22);
-                let order_qq1 = point_order_2e(self.two_dim.curve, QQ1, e22);
-                let order_qq2 = point_order_2e(self.two_dim.curve, QQ2, e22);
-  
-                println!("");
-                println!("111111111111111111111111111111");
-                println!("order_pp1: {}", order_pp1);
-                println!("order_pp2: {}", order_pp2);
-                println!("order_qq1: {}", order_qq1);
-                println!("order_qq2: {}", order_qq2);
-                println!("");
-
-
-                println!("+++++++????????????????????????????????????");
-                println!("+++++++????????????????????????????????????");
-                println!("+++++++????????????????????????????????????");
-                println!("");
-                println!("");
-                println!("PP1: {}, {}", PP1.X / PP1.Z, PP1.Y / PP1.Z);
-                println!("");
-                println!("PP2: {}, {}", PP2.X / PP2.Z, PP2.Y / PP2.Z);
-                println!("");
-                println!("QQ1: {}, {}", QQ1.X / QQ1.Z, QQ1.Y / QQ1.Z);
-                println!("");
-                println!("QQ2: {}, {}", QQ2.X / QQ2.Z, QQ2.Y / QQ2.Z);
-                println!("");
-                println!("");
-
-                println!("");
-                println!("-----------");
-
-                println!("");
-                println!("norm_b: {:?}", norm_b);
- 
-                println!("norm_c: {}", norm_c);
-                println!("");
-
-                
-                // let e_start = valuation(Integer::from(norm_b) + Integer::from(norm_c), Integer::from(2)).0;
-                let e_start = valuation(Integer::from(norm_b.clone()) + Integer::from(norm_c.clone()), Integer::from(2)).0;
-                println!("e_start: {}", e_start);
-                println!("");
-
-
-
-                // let mut e = 235; // for the hardcoded points
-                let mut e = e_start as u32; // TODO
+                let mut e = e_start;
                 loop {
                     let mut T = self.two_dim.curve.sub(&PP1, &PP2);
-                    println!("?????========????????");
-                    println!("e: {}", e);
-                    println!("");
-                    println!("PP1 - PP2: {}, {}", T.X / T.Z, T.Y / T.Z);
-                    println!("");
                     for _ in 0..e+1 {
                         T = self.two_dim.curve.double(&T);
                     }
-
-                    println!("");
-                    println!("----------------------");
-                    println!("");
-                    println!("");
-                    println!("T: {}, {}", T.X / T.Z, T.Y / T.Z);
-                    println!("");
                     // T is now 2^(e+1) * (PP1 - PP2)
                     if T.isinfinity() == 0xFFFFFFFF {
-                        let pp1 = PP1.clone();
-                        let qq1 = QQ1.clone();
-
-                        println!("==============================================");
-                        println!("");
-                        println!("PP1: {}, {}", PP1.X / PP1.Z, PP1.Y / PP1.Z);
-                        println!("");
-                        println!("PP2: {}", PP2.X / PP2.Z);
-                        println!("");
-                        println!("QQ1: {}", QQ1.X / QQ1.Z);
-                        println!("");
-                        println!("QQ2: {}", QQ2.X / QQ2.Z);
-                        println!("");
-
-                        PP1 = self.two_dim.curve.add(&PP1, &PP2);
-                        PP2 = self.two_dim.curve.sub(&pp1, &PP2);
-
-                        QQ1 = self.two_dim.curve.add(&QQ1, &QQ2);
-                        QQ2 = self.two_dim.curve.sub(&qq1, &QQ2);
-
-                        println!("PP1: {}, {}", PP1.X / PP1.Z, PP1.Y / PP1.Z);
-                        println!("");
-                        println!("PP2: {}", PP2.X / PP2.Z);
-                        println!("");
-                        println!("QQ1: {}", QQ1.X / QQ1.Z);
-                        println!("");
-                        println!("QQ2: {}", QQ2.X / QQ2.Z);
-                        println!("");
-
+                        (PP1, PP2) = h2(&self.two_dim.curve, &PP1, &PP2);
+                        (QQ1, QQ2) = h2(&self.two_dim.curve, &QQ1, &QQ2);
                         e -= 1;
                     } else {
-                        // e += 1; // comment out for hardcoded points
                         break;
                     }
                 }
 
-                println!("????????????????????????????????????");
-                println!("????????????????????????????????????");
-                println!("1????????????????????????????????????");
-                println!("");
-                println!("PP1: {}, {}", PP1.X / PP1.Z, PP1.Y / PP1.Z);
-                println!("");
-                println!("PP2: {}, {}", PP2.X / PP2.Z, PP2.Y / PP2.Z);
-                println!("");
-                println!("QQ1: {}, {}", QQ1.X / QQ1.Z, QQ1.Y / QQ1.Z);
-                println!("");
-                println!("QQ2: {}, {}", QQ2.X / QQ2.Z, QQ2.Y / QQ2.Z);
-                println!("");
-                println!("");
-                println!("e: {}", e);
-
-
-                /*
-                let P1P2 = CouplePoint::new(&norm_b_P, &gammaP);
-                let Q1Q2 = CouplePoint::new(&norm_b_Q, &gammaQ);
-                */
                 let P1P2 = CouplePoint::new(&PP1, &PP2);
                 let Q1Q2 = CouplePoint::new(&QQ1, &QQ2);
 
-                let order_foo = point_order_2e(self.two_dim.curve, self.two_dim.P, e22);
-                let order_pp1 = point_order_2e(self.two_dim.curve, PP1, e22);
-                let order_pp2 = point_order_2e(self.two_dim.curve, PP2, e22);
-                let order_qq1 = point_order_2e(self.two_dim.curve, QQ1, e22);
-                let order_qq2 = point_order_2e(self.two_dim.curve, QQ2, e22);
-  
+                let order_foo = point_order_2e(self.two_dim.curve, self.two_dim.P, valuation_2);
+                let order_pp1 = point_order_2e(self.two_dim.curve, PP1, valuation_2);
+
                 println!("");
                 println!("");
                 println!("order_foo: {}", order_foo);
                 println!("order_pp1: {}", order_pp1);
-                println!("order_pp2: {}", order_pp2);
-                println!("order_qq1: {}", order_qq1);
-                println!("order_qq2: {}", order_qq2);
                 println!("");
 
+                let pre = |T1: &Point, T2: &Point| -> (Point, Point){
+                    let mut K1 = T1.clone();
+                    let mut K2 = T2.clone();
+                    for _ in 0..(e_start - e) {
+                        let (new_T1, new_T2) = h2(&self.two_dim.curve, &K1, &K2);
+                        K1 = new_T1;
+                        K2 = new_T2;
+                    }
+                
+                    (K1, K2)
+                };
 
                 let inf = Point::INFINITY;
-
                 let image_points = vec![
-                    // CouplePoint::new(&self.two_dim.P, &self.two_dim.Q),
-                    // CouplePoint::new(&self.two_dim.omegaP, &self.two_dim.omegaQ),
-                    CouplePoint::new(&self.two_dim.P, &inf), // (f1(P), f2(P)) or ... ?
-                    CouplePoint::new(&self.two_dim.Q, &inf), // (f1(Q), f2(Q)) or ... ?
-                    CouplePoint::new(&inf, &self.two_dim.P),
-                    CouplePoint::new(&inf, &self.two_dim.Q),
+                    {
+                        let (p1, p2) = pre(&self.two_dim.P, &inf);
+                        CouplePoint::new(&p1, &p2)
+                    },
+                    {
+                        let (p1, p2) = pre(&self.two_dim.Q, &inf);
+                        CouplePoint::new(&p1, &p2)
+                    },
+                    {
+                        let (p1, p2) = pre(&self.two_dim.omegaP, &inf);
+                        CouplePoint::new(&p1, &p2)
+                    },
+                    {
+                        let (p1, p2) = pre(&self.two_dim.omegaQ, &inf);
+                        CouplePoint::new(&p1, &p2)
+                    },
                 ];
 
                 
@@ -672,15 +419,9 @@ macro_rules! define_klapoti {
 
                 println!("2: {:?}", second_part.elapsed());
 
-                let goo1 = point_order_2e(product.E1, points[0].P1, e22);
-
                 println!("");
-                println!("goo1: {}", goo1);
+                println!("e: {}", e);
                 println!("");
-                println!("");
-                println!("");
-                println!("");
-
 
                 let three = Fp::ONE + Fp::ONE + Fp::ONE;
                 let four = Fq::ONE + Fq::ONE + Fq::ONE + Fq::ONE;
@@ -714,86 +455,108 @@ macro_rules! define_klapoti {
                 println!("");
                 println!("E2 j-invariant: {}", jinv2);
 
-                println!("");
-                println!("");
-
-                let ee = 246;
-                // TODO: replace hard-coded 246
-
-                let (w1, ok1) = self.two_dim.curve.weil_pairing_2exp(ee, &self.two_dim.P, &self.two_dim.Q);
+                let (z, ok1) = self.two_dim.curve.weil_pairing_2exp(valuation_2 as usize, &self.two_dim.P, &self.two_dim.Q);
                 assert_eq!(ok1, 0xFFFFFFFF);
-                println!("-----------");
 
-                println!("??????????????????????????");
-                println!("");
-                println!("points[0].P1: {}", &points[0].P1);
-                println!("is inf: {}", &points[0].P1.isinfinity());
-                println!("");
-                println!("points[1].P1: {}", &points[1].P1);
-                println!("is inf: {}", &points[1].P1.isinfinity());
-                println!("");
-                println!("");
-
-                let (w2, ok21) = product.E1.weil_pairing_2exp(ee, &points[0].P1, &points[1].P1);
-                // assert_eq!(ok21, 0xFFFFFFFF);
-                println!("ok21: {:?}", ok21);
-
-                /*
-                let (w2, ok22) = product.E1.weil_pairing_2exp(ee, &points[0].P1, &points[1].P2);
-                println!("ok22: {:?}", ok22);
-
-                let (w2, ok23) = product.E1.weil_pairing_2exp(ee, &points[0].P2, &points[1].P1);
-                println!("ok23: {:?}", ok23);
-
-                let (w2, ok24) = product.E1.weil_pairing_2exp(ee, &points[0].P2, &points[1].P2);
-                println!("ok24: {:?}", ok24);
-                */
-
-
-                let (w22, ok31) = product.E1.weil_pairing_2exp(ee, &points[2].P1, &points[3].P1);
-                println!("ok31: {:?}", ok31);
-
-                /*
-                let (w22, ok32) = product.E1.weil_pairing_2exp(ee, &points[2].P1, &points[3].P2);
-                println!("ok32: {:?}", ok32);
-
-                let (w22, ok33) = product.E1.weil_pairing_2exp(ee, &points[2].P2, &points[3].P1);
-                println!("ok33: {:?}", ok33);
-
-                let (w22, ok34) = product.E1.weil_pairing_2exp(ee, &points[2].P2, &points[3].P2);
-                println!("ok34: {:?}", ok34);
-                */
-
-                // let norm_b_u32 = norm_b.to_u32_wrapping();
                 let bytes1 = big_to_bytes(norm_b.clone());
-                let foo1 = w2.pow(&bytes1, bytes1.len() * 8);
- 
+                let ztob = z.pow(&bytes1, bytes1.len() * 8);
+
                 let bytes2 = big_to_bytes(norm_c.clone());
-                let foo2 = w2.pow(&bytes2, bytes2.len() * 8);
+                let ztoc = z.pow(&bytes2, bytes2.len() * 8);
+
+
+                let distinguish = || -> (usize, Point, Point) {
+                    let imP1 = vec![&points[0].P1, &points[0].P2];
+                    let imQ1 = vec![&points[1].P1, &points[1].P2];
+
+                    let imP2 = vec![&points[2].P1, &points[2].P2];
+                    let imQ2 = vec![&points[3].P1, &points[3].P2];
+
+                    println!("");
+                    println!("============ ev ==============");
+                    println!("");
+                    
+                    for i in 0..2 {
+                        let imP = &imP1[i];
+                        let imQ = &imQ1[i];
+                        let mut curve = product.E1;
+                        if i == 1 {
+                            curve = product.E2;
+                        }
+
+                        println!("--------- 11");
+                        println!("imP1: {}, {}", imP.X / imP.Z, imP.Y / imP.Z);
+                        println!("");
+                        println!("imQ1: {}, {}", imQ.X / imQ.Z, imQ.Y / imQ.Z);
+                        println!("");
+                        println!("");
+
+                        let (w, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &imP, &imQ);
+                        println!("ok: {:?}", ok);
+                        println!("");
+                        println!("w: {}", w);
+                        println!("");
+
+                        if ztob == w || ztob == -w {
+                            println!("Found match for ztob!");
+                            if i == 0 {
+                                // norm_b "is" curve 1
+                            } else {
+                                // norm_b "is" curve 2
+                            }
+                            return (i, *imP.clone(), *imQ.clone());
+                        }
+                    }
+                    return (2, Point::INFINITY, Point::INFINITY);
+                };
+
+                let (ind, imP, mut imQ) = distinguish();
+                assert!(ind != 2);
+                let mut curve = product.E1;
+                if ind == 1 {
+                    curve = product.E2;
+                }
+
+                let (w, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &imP, &imQ);
+                println!("ok 1: {:?}", ok);
+                if ok == 0 || w != ztob {
+                    imQ.set_neg();
+                }
+
+                let norm_omega = self.two_dim.omega.norm();
+                println!("norm_omega: {}", norm_omega);
+
+                let bytes1 = big_to_bytes(norm_b * norm_omega.clone());
+                let ztow = z.pow(&bytes1, bytes1.len() * 8);
+                println!("ztow: {}", ztow);
+
+                let im_omegaP12 = vec![&points[2].P1, &points[2].P2];
+                let im_omegaQ12 = vec![&points[3].P1, &points[3].P2];
+
+                let im_omegaP = &im_omegaP12[ind];
+                let im_omegaQ = &im_omegaQ12[ind];
+
+                let (c2, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &im_omegaP, &im_omegaQ);
+                println!("ok 3: {:?}", ok);
+                if ok == 0 || c2 != ztow {
+                    imQ.set_neg();
+                }
+                
 
                 println!("");
-                println!("bytes1: {:?}", bytes1);
+                println!("???????????????? ============");
+                println!("");
+                println!("imP: {}, {}", imP.X / imP.Z, imP.Y / imP.Z);
+                println!("");
+                println!("imQ: {}, {}", imQ.X / imQ.Z, imQ.Y / imQ.Z);
                 println!("");
 
-                println!("w1: {:?}", w1);
-                println!("w1: {}", w1);
+                println!("im_omegaP: {}, {}", im_omegaP.X / im_omegaP.Z, im_omegaP.Y / im_omegaP.Z);
                 println!("");
-
-                // Why is w2 = 1 ????????????????
-                println!("w2: {:?}", w2);
-                println!("w2: {}", w2);
+                println!("im_omegaQ: {}, {}", im_omegaQ.X / im_omegaQ.Z, im_omegaQ.Y / im_omegaQ.Z);
                 println!("");
-
-                println!("w22: {:?}", w22);
-                println!("w22: {}", w22);
+                println!("curve: {}", curve);
                 println!("");
-
-                println!("foo1: {:?}", foo1);
-                println!("");
-                println!("foo2: {:?}", foo2);
-                println!("");
-                println!("--------");
-
 
                 PubKey::new(product, points[0], points[1])
             }
