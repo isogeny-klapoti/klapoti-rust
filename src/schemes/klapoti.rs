@@ -30,44 +30,6 @@ macro_rules! define_klapoti {
             pub omegaQ: Point,
         }
 
-        fn montgomerize(curve: &Curve, P: &Point) {
-            unimplemented!()
-        }
-
-        fn canonicalize_orientation(curve: &Curve, P: &Point, Q: &Point, e: u32) -> (Point, Point) {
-            let factor = 2.big().pow(e);
-            let bytes = big_to_bytes(factor);
-            let P4 = curve.mul(&P, &bytes, bytes.len() * 8);
-            let Q4 = curve.mul(&Q, &bytes, bytes.len() * 8);
-
-            let PQ4 = curve.add(&P4, &Q4);
-            let P2 = curve.mul_small(&P4, 2);
-            let Q2 = curve.mul_small(&Q4, 2);
-
-            let points = vec![
-                P4.clone(),
-                Q4.clone(),
-                PQ4.clone(),
-                curve.sub(&PQ4, &P2),
-                curve.add(&P4, &Q2),
-                curve.add(&Q4, &P2),
-            ];
-            
-            for Pt in points.iter() {
-                // let iso2 = montgomerize(curve, Pt);
-                //let codomain = iso2.codomain();
-            }
-
-            // how to use dlog for 2^t:
-            let t = 5;
-            // let (w1, ok) = curve.weil_pairing_2exp(t, &P, &Q);
-            let (w1, ok) = curve.weil_pairing_2exp(246, &P, &Q);
-            assert_eq!(ok, 0xFFFFFFFF);
-
-
-            (*P, *Q)
-        }
-
         impl TwoDim {
             pub fn new(
                 curve: Curve,
@@ -78,11 +40,6 @@ macro_rules! define_klapoti {
                 omegaP: Point,
                 omegaQ: Point,
             ) -> Self {
-
-                // canonicalize_orientation(&curve, &P, &Q, e); 
-
-                // replace curve, P, Q,...
-
                 Self {
                     curve,
                     omega,
@@ -97,21 +54,58 @@ macro_rules! define_klapoti {
 
         #[derive(Clone, Debug)]
         pub struct PubKey {
-            pub product: EllipticProduct,
-            pub imagePQ: CouplePoint,
-            pub imageOmegaPQ: CouplePoint,
+            pub curve: Curve,
+            pub P: Point,
+            pub Q: Point,
+            pub omegaP: Point,
+            pub omegaQ: Point,
         }
 
         impl PubKey {
             pub fn new(
-                product: EllipticProduct,
-                imagePQ: CouplePoint,
-                imageOmegaPQ: CouplePoint,
+                curve: Curve,
+                P: Point,
+                Q: Point,
+                omegaP: Point,
+                omegaQ: Point,
+                valuation_2: u32, // TODO: move
+                cofactor: u32, // TODO: move
             ) -> Self {
+
+                // TODO:
+                curve.normalize();
+
+                let bytes = big_to_bytes(2.big().pow(valuation_2 - 1));
+
+                let R = generate_random_fq(&curve, (valuation_2 - 1).big(), cofactor.big());
+                let mut S = Point::INFINITY; 
+                loop {
+                    S = generate_random_fq(&curve, (valuation_2 - 1).big(), cofactor.big());
+                    let (w, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &R, &S);
+                    assert_eq!(ok, 0xFFFFFFFF);
+                    let wto = w.pow(&bytes, bytes.len() * 8);
+
+                    if wto.equals(&Fq::ONE) == 0 { // wto != 1
+                        break;
+                    } 
+                }
+
+                println!("");
+                println!("+++++++++++++++++++++++++++++++++");
+                println!("");
+                println!("R: {}", R);
+                println!("");
+                println!("S: {}", S);
+                println!("");
+                println!("");
+
+
                 Self {
-                    product,
-                    imagePQ,
-                    imageOmegaPQ,
+                    curve,
+                    P,
+                    Q,
+                    omegaP,
+                    omegaQ,
                 }
             }
         }
@@ -153,6 +147,7 @@ macro_rules! define_klapoti {
                 klpt_start_value: u32,
                 strategies: HashMap<u32, Vec<usize>>,
                 valuation_2: u32,
+                cofactor: u32, // p + 1 = 2^valuation_2 * cofactor
             ) -> PubKey {
                 let start = Instant::now();
 
@@ -249,8 +244,8 @@ macro_rules! define_klapoti {
                 let norm_c = gamma_c.reduced_norm() / ideal_norm.clone();
                 let norm_c = norm_c.numer();
 
-                let norm_b = "4182713504114117797148066114627145646813405583142893162747073528043628390446532565874522486046178192217191890596465851352259760014614601336589369147255346224640434849138885968220248832902837105092124933589801986532829468388247805801765502267035383495671912429690920673415122506507153129119347181412644143175723351055023000752399910930246286438205217069316433385035440881407803202997260706395286139039729371904132832023298525822922455621749410030447703679229996465612047810482276075696977835997".big();
-                let norm_c = "8039022474781911307449499541789486740806500188209845072197193091739028292062740722834905827959442764877613927814852657851336323665018702827033932208126465610123030926086219658530104957394314264823574137680397584524030061037439063471983687576286661910415650106841744056809879245561063813740604513975401210768550139063011154235269296252879806872987756120290514028703643158447458114564475952540432041784315722779505425526837228132503823539040120209348867969435884948729124828020061668978710054947".big();
+                let norm_b = "4565924146296632737235756772431642587386221405171208750233525117839286963".big();
+                let norm_c = "2501464112816904581097433230540031475923714182331267082252899687331192141".big();
 
                 // The ideal b * c.conj() is principal. The generator is gamma_b.conjugate() * gamma_c / ideal.norm().
 
@@ -258,12 +253,12 @@ macro_rules! define_klapoti {
                 gamma = gamma.normalize();
 
                 // debugging:
-                // γ = -*ϑ + 
+                // γ = -298039931075527522255844797466619404933784424563074793597744939*ϑ - 3127764656277006504647309206099010060132678986748243084380759488225833242
 
                 let mut gamma = QuatAlgEl::new(
-                    "756151151992971022786269082275782537566146644058833574016466532987713676449045899614521608873706077827614116947171713982458658025727469108458442727150795170475650631859302173505433176920639340841327643665506411365911045023457389015568880446645777109635887258270184473071368803253322763271761501636789855753275089225002151254367669815250854233394144554717503949870114430203883850412979347146988950942983551068962249299896872686234027491570869130645242314331524447042986232777886249588433076850".big(),
+                    "-3127764656277006504647309206099010060132678986748243084380759488225833242".big(),
                     0.big(),
-                    "-49650957104474158518863448131556022106677606980215576191594072541306126231811205594395245031853258469796165981528907578797607818769502280889099674907778031327959626532330725307234531344415671555739518704509005628772787367221999811587178296785295383997904650315110992733851977190034848153659895211922502416168933305593301688314069968943700677054212608289969702970102462232739177153373107104523155819131572179223148457".big(),
+                    "-298039931075527522255844797466619404933784424563074793597744939".big(),
                     0.big(),
                     1.big(),
                     qa.clone(),
@@ -336,7 +331,7 @@ macro_rules! define_klapoti {
                 let fe = 2.big().pow(fe);
                 let fe_bytes = big_to_bytes(fe);
 
-                let fe = 8; // TODO: hardcoded for debugging
+                let fe = 4; // TODO: hardcoded for debugging
                 let fe_bytes = big_to_bytes(fe.big()); // TODO: hardcoded for debugging
 
                 let mut PP1 = self.two_dim.curve.mul(&norm_b_P, &fe_bytes, fe_bytes.len() * 8);
@@ -413,8 +408,8 @@ macro_rules! define_klapoti {
                 println!("key: {}, {}", e, e-1);
                 println!("");
 
-                if strategies.get(&e).is_none() {
-                    panic!("No strategy for e = {}", e);
+                if strategies.get(&(e-1)).is_none() {
+                    panic!("No strategy for e - 1 = {}", e - 1);
                 }
                 
                 let (product, points) = product_isogeny(
@@ -467,12 +462,7 @@ macro_rules! define_klapoti {
                 let (z, ok1) = self.two_dim.curve.weil_pairing_2exp(valuation_2 as usize, &self.two_dim.P, &self.two_dim.Q);
                 assert_eq!(ok1, 0xFFFFFFFF);
 
-                let bytes1 = big_to_bytes(norm_b.clone());
-                let ztob = z.pow(&bytes1, bytes1.len() * 8);
-
-                let bytes2 = big_to_bytes(norm_c.clone());
-                let ztoc = z.pow(&bytes2, bytes2.len() * 8);
-
+                let ztob = z.pow(&nb_bytes, nb_bytes.len() * 8);
 
                 let distinguish = || -> (usize, Point, Point) {
                     let imP1 = vec![&points[0].P1, &points[0].P2];
@@ -503,10 +493,15 @@ macro_rules! define_klapoti {
                         let (w, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &imP, &imQ);
                         println!("ok: {:?}", ok);
                         println!("");
+                        println!("z^Nb: {}", ztob);
+                        println!("");
                         println!("w: {}", w);
                         println!("");
+                        let w_inv = w.invert();
+                        println!("w inv: {}", w_inv);
+                        println!("");
 
-                        if ztob == w || ztob == -w {
+                        if ztob == w || ztob == w_inv {
                             println!("Found match for ztob!");
                             if i == 0 {
                                 // norm_b "is" curve 1
@@ -542,8 +537,8 @@ macro_rules! define_klapoti {
                 let im_omegaP12 = vec![&points[2].P1, &points[2].P2];
                 let im_omegaQ12 = vec![&points[3].P1, &points[3].P2];
 
-                let im_omegaP = &im_omegaP12[ind];
-                let im_omegaQ = &im_omegaQ12[ind];
+                let im_omegaP = im_omegaP12[ind];
+                let im_omegaQ = im_omegaQ12[ind];
 
                 let (c2, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &im_omegaP, &im_omegaQ);
                 println!("ok 3: {:?}", ok);
@@ -567,7 +562,7 @@ macro_rules! define_klapoti {
                 println!("curve: {}", curve);
                 println!("");
 
-                PubKey::new(product, points[0], points[1])
+                PubKey::new(curve, imP, imQ, *im_omegaP, *im_omegaQ, valuation_2, cofactor)
             }
         }
     };

@@ -856,23 +856,6 @@ macro_rules! define_ec_core {
                 Fq::condswap(&mut P.Z, &mut Q.Z, ctl32);
             }
 
-            /*
-            let mut k_digits = c1.to_digits::<u64>(Order::MsfLe);
-            k_digits.reverse();
-            // TODO
-
-            // let k_digits: Vec<u64> = [1, 0, 0, 0].to_vec(); // TODO: remove, JUST DEBUGGING
-
-            let mut l_digits = c2.to_digits::<u64>(Order::MsfLe);
-            l_digits.reverse();
-            while l_digits.len() < 4 {
-                l_digits.push(0);
-            }
-            // let l_digits: Vec<u64> = [1, 0, 0, 0].to_vec(); // TODO: remove, JUST DEBUGGING
-
-            let f: usize = 36; // TODO
-            let Pc = self.curve.xdblmul_bounded(&Pc, &k_digits, &Qc, &l_digits, &PmQc, f);
-            */
             pub fn xdblmul_bounded(
                 self,
                 P: &Point,
@@ -1363,6 +1346,115 @@ macro_rules! define_ec_core {
                 w.set_cond(&Fq::ONE, set1);
                 w.set_condneg(set1 & neg1);
                 (w, ok)
+            }
+
+            fn normalize(self) {
+                /*
+                fp2_t t0, t1, t2, t3, t4, t5;
+                // Compute the other solutions:
+                // A'^2 = [ sqrt(A^2-4C^2)*(9C^2-A^2) +- (A^3-3AC^2) ] / [ 2C^2*sqrt(A^2-4C^2) ]
+                fp2_sqr(&t0, &old->C);      //C^2
+                fp2_add(&t1, &t0, &t0);     //2C^2
+                fp2_add(&t2, &t1, &t1);     //4C^2
+                fp2_sqr(&t3, &old->A);      //A^2
+                fp2_sub(&t2, &t3, &t2);     //A^2-4C^2
+                fp2_sqrt(&t2);              //sqrt(A^2-4C^2)
+                fp2_add(&t0, &t0, &t1);     //3C^2
+                fp2_mul(&t1, &t2, &t1);     //2C^2*sqrt(A^2-4C^2)
+                fp2_sub(&t5, &t3, &t0);     //A^2-3C^2
+                fp2_mul(&t5, &t5, &old->A);     //A^3-3AC^2
+                fp2_add(&t4, &t0, &t0);     //6C^2
+                fp2_add(&t0, &t4, &t0);     //9C^2
+                fp2_sub(&t0, &t0, &t3);     //9C^2-A^2
+                fp2_add(&t3, &t3, &t3);     //2A^2
+                fp2_mul(&t3, &t3, &t2);     //2A^2*sqrt(A^2-4C^2)
+                fp2_mul(&t2, &t2, &t0);     //sqrt(A^2-4C^2)*(9C^2-A^2)
+                fp2_add(&t0, &t2, &t5);     //sqrt(A^2-4C^2)*(9C^2-A^2) + (A^3-3AC^2)
+                fp2_sub(&t2, &t2, &t5);     //sqrt(A^2-4C^2)*(9C^2-A^2) - (A^3-3AC^2)
+                fp2_inv(&t1);               //1/2C^2*sqrt(A^2-4C^2)
+                fp2_mul(&t0, &t0, &t1);     // First solution
+                fp2_mul(&t2, &t2, &t1);     // Second solution
+                fp2_mul(&t1, &t3, &t1);     // Original solution
+
+                // Chose the lexicographically first solution
+                if(fp2_cmp(&t0, &t1)==1)
+                    fp2_copy(&t0, &t1);
+                if(fp2_cmp(&t0, &t2)==1)
+                    fp2_copy(&t0, &t2);
+
+                // Copy the solution
+                fp2_sqrt(&t0);
+                ec_curve_t E;
+                fp2_copy(&E.A, &t0);
+                fp_mont_setone(E.C.re);
+                fp_set(E.C.im, 0);
+                ec_isomorphism(isom, old, &E);
+                fp2_copy(&new->A, &E.A);
+                fp2_copy(&new->C, &E.C);
+                */
+
+                let t0 = Fq::ONE;
+                let t1 = &t0 + &t0;
+                // t2 = 4C^2
+                let t2 = &t1 + &t1;
+                // t3 = A^2
+                let t3 = self.A.square();
+                // t2 = A^2 - 4C^2
+                let t2 = &t3 - &t2;
+                // t2 = sqrt(A^2 - 4C^2)
+                let (t2, r) = t2.sqrt();
+                assert!(r == 0xFFFFFFFF);
+                // t0 = 3C^2
+                let t0 = &t0 + &t1;
+                // t1 = 2C^2 * sqrt(A^2-4C^2)
+                let t1 = &t2 * &t1;
+                // t5 = A^2 - 3C^2
+                let t5 = &t3 - &t0;
+                // t5 = A^3 - 3AC^2
+                let t5 = &t5 * &self.A;
+                // t4 = 6C^2
+                let t4 = &t0 + &t0;
+                // t0 = 9C^2
+                let t0 = &t4 + &t0;
+                // t0 = 9C^2 - A^2
+                let t0 = &t0 - &t3;
+                // t3 = 2A^2
+                let t3 = &t3 + &t3;
+                // t3 = 2A^2 * sqrt(A^2-4C^2)
+                let t3 = &t3 * &t2;
+                // t2 = sqrt(A^2-4C^2) * (9C^2-A^2)
+                let t2 = &t2 * &t0;
+                // t0 = sqrt(A^2-4C^2)*(9C^2-A^2) + (A^3-3AC^2)
+                let t0 = &t2 + &t5;
+                // t2 = sqrt(A^2-4C^2)*(9C^2-A^2) - (A^3-3AC^2)
+                let t2 = &t2 - &t5;
+                // t1 = 1/(2C^2*sqrt(A^2-4C^2))
+                let t1 = t1.invert();
+                // t0 = first solution
+                let t0 = &t0 * &t1;
+                // t2 = second solution
+                let t2 = &t2 * &t1;
+                // t1 = original solution
+                let t1 = &t3 * &t1;
+
+                // Choose the lex smallest solution
+                let mut sol = t0.clone();
+
+                /*
+                if sol > t1 { sol = t1.clone(); }
+                if sol > t2 { sol = t2.clone(); }
+
+                let (sol, r1) = sol.sqrt();
+                assert!(r1 == 0xFFFFFFFF);
+                */
+                println!("");
+                println!("t0: {}", t0);
+                println!("");
+                println!("t1: {}", t1);
+                println!("");
+                println!("t2: {}", t2);
+                println!("");
+
             }
         }
 
