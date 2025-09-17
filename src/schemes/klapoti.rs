@@ -8,7 +8,7 @@ macro_rules! define_klapoti {
         use crate::quaternion::quaternion_algebra::{QuatAlg, QuatAlgEl};
         use crate::quaternion::quaternion_ideal::QuaternionIdeal;
         use crate::quaternion::quaternion_order::QuaternionOrder;
-        use crate::util::{big_to_bytes, valuation};
+        use crate::util::{big_to_bytes, valuation, bytes_from_str};
         use std::time::Instant;
         use num_traits::Pow;
         use std::collections::HashMap;
@@ -90,12 +90,244 @@ macro_rules! define_klapoti {
                     } 
                 }
 
+
+                let A = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "87588114400902199998338770337694739636315554156424733587465955178621864700",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "619983003027140970448668231864152961217819436005861629692568717681019587071",
+                    )),
+                );
+                let curve = Curve::new(&A);
+
+                let Px = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "640262070225397919641419391798411906185192704400982985445972594570331098653",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "287810177297146274761114922305202226260110532495201421327960422009294927864",
+                    )),
+                );
+                let Py = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "457788924259115902463588305888251116114261190788876950068401387037922249228",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "633138429939111716122288253451612328751828562769273084337837985144875427010",
+                    )),
+                );
+                let P = Point {
+                    X: Px,
+                    Y: Py,
+                    Z: Fq::ONE,
+                };
+
+                let Px = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "577933924249040245437036418717899949221523555485972514647508407144730672525",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "1019387042211059007922076628149515744324272062266127407040430254585022649375",
+                    )),
+                );
+                let Py = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "509394661907087766331273068402842237724830983103433527961227534947863445264",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "725385452187303835136549965145606007505912062894778454060531039947591434989",
+                    )),
+                );
+                let Q = Point {
+                    X: Px,
+                    Y: Py,
+                    Z: Fq::ONE,
+                };
+
+
+                // omegaP, omegaQ
+
+                let Px = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "634039621850969308805385027694276169360651609855271563211520020735844785215",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "1075188422265331762811290023078590423058046429393430765873987622134783102482",
+                    )),
+                );
+                let Py = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "1097972323119634683247217098336541543090612946284328422947693398582605586101",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "220599266309031818624969048679582813355156390507263420502962613496935193172",
+                    )),
+                );
+                let omegaP = Point {
+                    X: Px,
+                    Y: Py,
+                    Z: Fq::ONE,
+                };
+
+                let Px = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "986992327121915758581192528730652032676947074727662307563723961364053414999",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "921059537265102690615221739730873763647293364847969554649992493452361646901",
+                    )),
+                );
+                let Py = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "74607066523784015036897537654048456971960892140972951534399235879024055198",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "371448068294077661734717191164184817605554068703830199822253857365493561338",
+                    )),
+                );
+                let omegaQ = Point {
+                    X: Px,
+                    Y: Py,
+                    Z: Fq::ONE,
+                };
+
+                /*
                 println!("");
                 println!("+++++++++++++++++++++++++++++++++");
                 println!("");
                 println!("R: {}", R);
                 println!("");
                 println!("S: {}", S);
+                println!("");
+                println!("");
+                */
+
+                let Px = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "925473869824409399843652150961237538577304088344928976475296163379511372554",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "116287816262904234454738007257879993288471265874250810570974463204167683390",
+                    )),
+                );
+                let Py = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "1015993309849213971252813187901840334758687159880946344187583207756725238062",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "957009723818330665698232654864907677082438236295236482958661892033234280556",
+                    )),
+                );
+                let R = Point {
+                    X: Px,
+                    Y: Py,
+                    Z: Fq::ONE,
+                };
+
+                let Px = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "838916474589319857260876467036924575254055493201918407630183323525256184301",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "1116028115080817570187543946914933769013649727010082549357974164345300672012",
+                    )),
+                );
+                let Py = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "227413930184305938291645565787496783486997670939025411806399471552837775354",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "69513907430609967024884397322368381340309250746433465152060923612821002173",
+                    )),
+                );
+                let S = Point {
+                    X: Px,
+                    Y: Py,
+                    Z: Fq::ONE,
+                };
+
+                let mylog = mylogfun(&curve, &P, &Q, valuation_2 as usize);
+
+                println!("");
+                println!("--------------------");
+                println!("");
+
+                let roo = mylog(&R);
+                let soo = mylog(&S);
+
+                let a = roo.0.clone();
+                let b = roo.1.clone();
+                let c = soo.0.clone();
+                let d = soo.1.clone();
+
+                let mut mat = Matrix::<Integer>::zeros(4, 4);
+                mat[(0, 0)] = a.clone();
+                mat[(0, 1)] = b.clone();
+                mat[(1, 0)] = c.clone();
+                mat[(1, 1)] = d.clone();
+
+
+
+                let m =  2.big().pow(valuation_2);
+                let det = (a.clone() * d.clone() - b.clone() * c.clone()).modulo(&m);
+                let det_inv = det.invert(&m).unwrap();
+                let m00 = (d * det_inv.clone()).modulo(&m);
+                let m01 = ((-b).modulo(&m) * det_inv.clone()).modulo(&m);
+                let m10 = ((-c).modulo(&m) * det_inv.clone()).modulo(&m);
+                let m11 = (a * det_inv).modulo(&m);
+
+                
+
+                println!("");
+                println!("m00: {}", m00);
+                println!("");
+                println!("m01: {}", m01);
+                println!("");
+                println!("m10: {}", m10);
+                println!("");
+                println!("m11: {}", m11);
+                println!("");
+                println!("");
+                println!("");
+
+                /*
+                let m00 = ( d * inv_det).rem_euclid(p);
+                let m01 = ((-b) * inv_det).rem_euclid(p);
+                let m10 = ((-c) * inv_det).rem_euclid(p);
+                let m11 = ( a * inv_det).rem_euclid(p);
+                */
+
+                let mut mat_inv = Matrix::<Integer>::zeros(4, 4);
+                mat_inv[(0, 0)] = m00;
+                mat_inv[(0, 1)] = m01;
+                mat_inv[(1, 0)] = m10;
+                mat_inv[(1, 1)] = m11;
+
+                let foo = mat * mat_inv;
+                println!("");
+                println!("foo: {}", foo[(0, 0)].clone().modulo(&m));
+                println!("");
+                println!("foo: {}", foo[(0, 1)].clone().modulo(&m));
+                println!("");
+                println!("foo: {}", foo[(1, 0)].clone().modulo(&m));
+                println!("");
+                println!("foo: {}", foo[(1, 1)].clone().modulo(&m));
+                println!("");
+
+                let omega_roo = mylog(&omegaP);
+                let omega_soo = mylog(&omegaQ);
+
+                println!("");
+                println!("roo: {}, {}", roo.0, roo.1);
+                println!("");
+                println!("soo: {}, {}", soo.0, soo.1);
+                println!("");
+                println!("");
+
+                println!("omega_roo: {}, {}", omega_roo.0, omega_roo.1);
+                println!("");
+                println!("omega_soo: {}, {}", omega_soo.0, omega_soo.1);
                 println!("");
                 println!("");
 

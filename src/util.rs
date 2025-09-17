@@ -139,6 +139,13 @@ impl Big for u32 {
     }
 }
 
+impl Big for usize {
+    #[inline]
+    fn big(self) -> Integer {
+        Integer::from(self)
+    }
+}
+
 impl Big for u64 {
     #[inline]
     fn big(self) -> Integer {
