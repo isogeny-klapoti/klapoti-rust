@@ -78,8 +78,9 @@ macro_rules! define_klapoti {
                 let bytes = big_to_bytes(2.big().pow(valuation_2 - 1));
 
                 let R = generate_random_fq(&curve, (valuation_2 - 1).big(), cofactor.big());
-                let mut S = Point::INFINITY; 
+                let mut S;
                 loop {
+                    println!("loop");
                     S = generate_random_fq(&curve, (valuation_2 - 1).big(), cofactor.big());
                     let (w, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &R, &S);
                     assert_eq!(ok, 0xFFFFFFFF);
@@ -89,8 +90,13 @@ macro_rules! define_klapoti {
                         break;
                     } 
                 }
+                
+                println!("");
+                println!("========");
+                println!("");
+                println!("out of loop");
 
-
+                /*
                 let A = Fq::new(
                     &Fp::decode_reduce(&bytes_from_str(
                         "87588114400902199998338770337694739636315554156424733587465955178621864700",
@@ -144,10 +150,12 @@ macro_rules! define_klapoti {
                     Y: Py,
                     Z: Fq::ONE,
                 };
+                */
 
 
                 // omegaP, omegaQ
 
+                /*
                 let Px = Fq::new(
                     &Fp::decode_reduce(&bytes_from_str(
                         "634039621850969308805385027694276169360651609855271563211520020735844785215",
@@ -191,18 +199,10 @@ macro_rules! define_klapoti {
                     Y: Py,
                     Z: Fq::ONE,
                 };
-
-                /*
-                println!("");
-                println!("+++++++++++++++++++++++++++++++++");
-                println!("");
-                println!("R: {}", R);
-                println!("");
-                println!("S: {}", S);
-                println!("");
-                println!("");
                 */
 
+
+                /*
                 let Px = Fq::new(
                     &Fp::decode_reduce(&bytes_from_str(
                         "925473869824409399843652150961237538577304088344928976475296163379511372554",
@@ -246,15 +246,24 @@ macro_rules! define_klapoti {
                     Y: Py,
                     Z: Fq::ONE,
                 };
+                */
 
                 let mylog = mylogfun(&curve, &P, &Q, valuation_2 as usize);
 
                 println!("");
-                println!("--------------------");
+                println!("after mylogfun");
                 println!("");
 
                 let roo = mylog(&R);
+                println!("");
+                println!("after mylog(R)");
+                println!("");
+
                 let soo = mylog(&S);
+
+                println!("");
+                println!("after mylog(S)");
+                println!("");
 
                 let a = roo.0.clone();
                 let b = roo.1.clone();
@@ -267,8 +276,6 @@ macro_rules! define_klapoti {
                 mat[(1, 0)] = c.clone();
                 mat[(1, 1)] = d.clone();
 
-
-
                 let m =  2.big().pow(valuation_2);
                 let det = (a.clone() * d.clone() - b.clone() * c.clone()).modulo(&m);
                 let det_inv = det.invert(&m).unwrap();
@@ -277,67 +284,48 @@ macro_rules! define_klapoti {
                 let m10 = ((-c).modulo(&m) * det_inv.clone()).modulo(&m);
                 let m11 = (a * det_inv).modulo(&m);
 
-                
-
-                println!("");
-                println!("m00: {}", m00);
-                println!("");
-                println!("m01: {}", m01);
-                println!("");
-                println!("m10: {}", m10);
-                println!("");
-                println!("m11: {}", m11);
-                println!("");
-                println!("");
-                println!("");
-
-                /*
-                let m00 = ( d * inv_det).rem_euclid(p);
-                let m01 = ((-b) * inv_det).rem_euclid(p);
-                let m10 = ((-c) * inv_det).rem_euclid(p);
-                let m11 = ( a * inv_det).rem_euclid(p);
-                */
 
                 let mut mat_inv = Matrix::<Integer>::zeros(4, 4);
                 mat_inv[(0, 0)] = m00;
                 mat_inv[(0, 1)] = m01;
                 mat_inv[(1, 0)] = m10;
                 mat_inv[(1, 1)] = m11;
-
-                let foo = mat * mat_inv;
-                println!("");
-                println!("foo: {}", foo[(0, 0)].clone().modulo(&m));
-                println!("");
-                println!("foo: {}", foo[(0, 1)].clone().modulo(&m));
-                println!("");
-                println!("foo: {}", foo[(1, 0)].clone().modulo(&m));
-                println!("");
-                println!("foo: {}", foo[(1, 1)].clone().modulo(&m));
-                println!("");
-
+ 
                 let omega_roo = mylog(&omegaP);
                 let omega_soo = mylog(&omegaQ);
 
-                println!("");
-                println!("roo: {}, {}", roo.0, roo.1);
-                println!("");
-                println!("soo: {}, {}", soo.0, soo.1);
-                println!("");
-                println!("");
 
-                println!("omega_roo: {}, {}", omega_roo.0, omega_roo.1);
-                println!("");
-                println!("omega_soo: {}, {}", omega_soo.0, omega_soo.1);
-                println!("");
-                println!("");
+                let mut mat_om = Matrix::<Integer>::zeros(4, 4);
+                mat_om[(0, 0)] = omega_roo.0.clone();
+                mat_om[(0, 1)] = omega_roo.1.clone();
+                mat_om[(1, 0)] = omega_soo.0.clone();
+                mat_om[(1, 1)] = omega_soo.1.clone();
 
+                let omega_RS = mat * mat_om * mat_inv; // TODO: apply modulo?
+
+                let mut bytes = big_to_bytes(omega_RS[(0, 0)].clone());
+                let mut T1 = curve.mul(&R, &bytes, bytes.len() * 8);
+                bytes = big_to_bytes(omega_RS[(0, 1)].clone());
+                let mut T2 = curve.mul(&S, &bytes, bytes.len() * 8);
+                let omegaR = curve.add(&T1, &T2);
+
+                let mut bytes = big_to_bytes(omega_RS[(1, 0)].clone());
+                T1 = curve.mul(&R, &bytes, bytes.len() * 8);
+                bytes = big_to_bytes(omega_RS[(1, 1)].clone());
+                T2 = curve.mul(&S, &bytes, bytes.len() * 8);
+                let omegaS = curve.add(&T1, &T2);
+
+                println!("");
+                println!("omegaR: {}", omegaR.X / omegaR.Z);
+                println!("");
+                println!("omegaS: {}", omegaS.X / omegaS.Z);
 
                 Self {
-                    curve,
-                    P,
-                    Q,
-                    omegaP,
-                    omegaQ,
+                    curve, // TODO: new curve
+                    P: R,
+                    Q: S,
+                    omegaP: omegaR,
+                    omegaQ: omegaS,
                 }
             }
         }
@@ -476,8 +464,8 @@ macro_rules! define_klapoti {
                 let norm_c = gamma_c.reduced_norm() / ideal_norm.clone();
                 let norm_c = norm_c.numer();
 
-                let norm_b = "4565924146296632737235756772431642587386221405171208750233525117839286963".big();
-                let norm_c = "2501464112816904581097433230540031475923714182331267082252899687331192141".big();
+                // let norm_b = "4565924146296632737235756772431642587386221405171208750233525117839286963".big();
+                // let norm_c = "2501464112816904581097433230540031475923714182331267082252899687331192141".big();
 
                 // The ideal b * c.conj() is principal. The generator is gamma_b.conjugate() * gamma_c / ideal.norm().
 
@@ -487,6 +475,7 @@ macro_rules! define_klapoti {
                 // debugging:
                 // γ = -298039931075527522255844797466619404933784424563074793597744939*ϑ - 3127764656277006504647309206099010060132678986748243084380759488225833242
 
+                /*
                 let mut gamma = QuatAlgEl::new(
                     "-3127764656277006504647309206099010060132678986748243084380759488225833242".big(),
                     0.big(),
@@ -495,6 +484,7 @@ macro_rules! define_klapoti {
                     1.big(),
                     qa.clone(),
                 );
+                */
 
 
                 let gamma_quadratic = QuadraticOrderEl::new(
@@ -563,8 +553,8 @@ macro_rules! define_klapoti {
                 let fe = 2.big().pow(fe);
                 let fe_bytes = big_to_bytes(fe);
 
-                let fe = 4; // TODO: hardcoded for debugging
-                let fe_bytes = big_to_bytes(fe.big()); // TODO: hardcoded for debugging
+                // let fe = 4; // TODO: hardcoded for debugging
+                // let fe_bytes = big_to_bytes(fe.big()); // TODO: hardcoded for debugging
 
                 let mut PP1 = self.two_dim.curve.mul(&norm_b_P, &fe_bytes, fe_bytes.len() * 8);
                 let mut PP2 = self.two_dim.curve.mul(&gammaP, &fe_bytes, fe_bytes.len() * 8);
@@ -599,6 +589,10 @@ macro_rules! define_klapoti {
                 let order_pp1 = point_order_2e(self.two_dim.curve, PP1, valuation_2);
 
                 println!("");
+                println!("");
+                println!("P: {}, {}", self.two_dim.P.X / self.two_dim.P.Z, self.two_dim.P.Y / self.two_dim.P.Z);
+                println!("");
+                println!("curve: {}", self.two_dim.curve);
                 println!("");
                 println!("order_foo: {}", order_foo);
                 println!("order_pp1: {}", order_pp1);
