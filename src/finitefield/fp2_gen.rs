@@ -24,6 +24,7 @@ macro_rules! define_fp2_core {
         use rand_core::{CryptoRng, RngCore};
         use std::fmt;
         use std::iter::Sum;
+        use std::cmp::Ordering;
 
         /// GF(p^2) implementation.
         #[derive(Clone, Copy, Debug)]
@@ -1082,6 +1083,26 @@ macro_rules! define_fp2_core {
         impl PartialEq for Fp2 {
             fn eq(&self, other: &Self) -> bool {
                 self.equals(other) == 0xFFFFFFFF
+            }
+        }
+
+        impl Eq for Fp2 {}
+
+        impl PartialOrd for Fp2 {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                match self.x0.partial_cmp(&other.x0) {
+                    Some(Ordering::Equal) => self.x1.partial_cmp(&other.x1),
+                    non_eq => non_eq,
+                }
+            }
+        }
+
+        impl Ord for Fp2 {
+            fn cmp(&self, other: &Self) -> Ordering {
+                match self.x0.cmp(&other.x0) {
+                    Ordering::Equal => self.x1.cmp(&other.x1),
+                    non_eq => non_eq,
+                }
             }
         }
 

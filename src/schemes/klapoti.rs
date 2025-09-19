@@ -8,7 +8,7 @@ macro_rules! define_klapoti {
         use crate::quaternion::quaternion_algebra::{QuatAlg, QuatAlgEl};
         use crate::quaternion::quaternion_ideal::QuaternionIdeal;
         use crate::quaternion::quaternion_order::QuaternionOrder;
-        use crate::util::{big_to_bytes, valuation, bytes_from_str};
+        use crate::util::{big_to_bytes, valuation};
         use std::time::Instant;
         use num_traits::Pow;
         use std::collections::HashMap;
@@ -64,25 +64,75 @@ macro_rules! define_klapoti {
         impl PubKey {
             pub fn new(
                 curve: Curve,
-                P: Point,
-                Q: Point,
-                omegaP: Point,
-                omegaQ: Point,
+                mut P: Point,
+                mut Q: Point,
+                mut omegaP: Point,
+                mut omegaQ: Point,
                 valuation_2: u32, // TODO: move
                 cofactor: u32, // TODO: move
             ) -> Self {
 
+                let order_foo = point_order_2e(curve, P, valuation_2); // TODO: remove
+                println!("");
+                println!("order P: {}", order_foo);
+                println!("");
+
+                let order_foo = point_order_2e(curve, Q, valuation_2); // TODO: remove
+                println!("");
+                println!("order Q: {}", order_foo);
+                println!("");
+                println!("");
+                println!("");
+                println!("");
+                println!("================ 222222222222");
+                println!("");
+
+
                 // TODO:
-                curve.normalize();
+                let (new_curve, isom) = curve.normalize();
+
+                new_curve.ec_iso_eval(&mut P, &isom);
+                new_curve.ec_iso_eval(&mut Q, &isom);
+                new_curve.ec_iso_eval(&mut omegaP, &isom);
+                new_curve.ec_iso_eval(&mut omegaQ, &isom);
+                
+                let order_foo = point_order_2e(new_curve, P, valuation_2); // TODO: remove
+                println!("");
+                println!("order P: {}", order_foo); // is 0 now !!!!!!!!!!!!!!!, the isomorphism mapping doesn't work properly
+                println!("");
+
+                let order_foo = point_order_2e(new_curve, Q, valuation_2); // TODO: remove
+                println!("");
+                println!("order Q: {}", order_foo); // is 0 now !!!!!!!!!!!!!!!
+                println!("");
 
                 let bytes = big_to_bytes(2.big().pow(valuation_2 - 1));
 
-                let R = generate_random_fq(&curve, (valuation_2 - 1).big(), cofactor.big());
+                // let R = generate_random_fq(&curve, (valuation_2 - 1).big(), cofactor.big()); // TODO: remove
+                let R = generate_random_fq(&new_curve, (valuation_2 - 1).big(), cofactor.big()); // TODO: enable
+
+                println!("");
+                println!("");
+                println!("-?-?-?-?");
+                println!("");
+                println!("new_curve.A: {}", new_curve);
+                println!("");
+                println!("R: {}, {}", R.X / R.Z, R.Y / R.Z);
+                println!("");
+
+                // debugging:
+                let order_foo = point_order_2e(new_curve, R, valuation_2); // TODO: remove
+                // let order_foo = point_order_2e(curve, R, valuation_2);
+                println!("");
+                println!("order_foo: {}", order_foo);
+                println!("");
+
+                
                 let mut S;
                 loop {
                     println!("loop");
-                    S = generate_random_fq(&curve, (valuation_2 - 1).big(), cofactor.big());
-                    let (w, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &R, &S);
+                    S = generate_random_fq(&new_curve, (valuation_2 - 1).big(), cofactor.big());
+                    let (w, ok) = new_curve.weil_pairing_2exp(valuation_2 as usize, &R, &S);
                     assert_eq!(ok, 0xFFFFFFFF);
                     let wto = w.pow(&bytes, bytes.len() * 8);
 
@@ -105,7 +155,7 @@ macro_rules! define_klapoti {
                         "619983003027140970448668231864152961217819436005861629692568717681019587071",
                     )),
                 );
-                let curve = Curve::new(&A);
+                let new_curve = Curve::new(&A);
 
                 let Px = Fq::new(
                     &Fp::decode_reduce(&bytes_from_str(
@@ -248,7 +298,7 @@ macro_rules! define_klapoti {
                 };
                 */
 
-                let mylog = mylogfun(&curve, &P, &Q, valuation_2 as usize);
+                let mylog = mylogfun(&new_curve, &P, &Q, valuation_2 as usize);
 
                 println!("");
                 println!("after mylogfun");
@@ -304,16 +354,16 @@ macro_rules! define_klapoti {
                 let omega_RS = mat * mat_om * mat_inv; // TODO: apply modulo?
 
                 let mut bytes = big_to_bytes(omega_RS[(0, 0)].clone());
-                let mut T1 = curve.mul(&R, &bytes, bytes.len() * 8);
+                let mut T1 = new_curve.mul(&R, &bytes, bytes.len() * 8);
                 bytes = big_to_bytes(omega_RS[(0, 1)].clone());
-                let mut T2 = curve.mul(&S, &bytes, bytes.len() * 8);
-                let omegaR = curve.add(&T1, &T2);
+                let mut T2 = new_curve.mul(&S, &bytes, bytes.len() * 8);
+                let omegaR = new_curve.add(&T1, &T2);
 
                 let mut bytes = big_to_bytes(omega_RS[(1, 0)].clone());
-                T1 = curve.mul(&R, &bytes, bytes.len() * 8);
+                T1 = new_curve.mul(&R, &bytes, bytes.len() * 8);
                 bytes = big_to_bytes(omega_RS[(1, 1)].clone());
-                T2 = curve.mul(&S, &bytes, bytes.len() * 8);
-                let omegaS = curve.add(&T1, &T2);
+                T2 = new_curve.mul(&S, &bytes, bytes.len() * 8);
+                let omegaS = new_curve.add(&T1, &T2);
 
                 println!("");
                 println!("omegaR: {}", omegaR.X / omegaR.Z);
@@ -321,7 +371,7 @@ macro_rules! define_klapoti {
                 println!("omegaS: {}", omegaS.X / omegaS.Z);
 
                 Self {
-                    curve, // TODO: new curve
+                    curve: new_curve,
                     P: R,
                     Q: S,
                     omegaP: omegaR,

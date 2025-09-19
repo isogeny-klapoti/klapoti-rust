@@ -206,6 +206,13 @@ macro_rules! define_ec_core {
             }
         }
 
+        #[derive(Clone, Debug)]
+        pub struct ECIsomorphism {
+            pub Nx: Fq,
+            pub Nz: Fq,
+            pub D: Fq,
+        }
+
         /// Curve y^2 = x^3 + A*x^2 + x, for a given constant A
         /// (special case of a Montgomery curve).
         #[derive(Clone, Copy, Debug)]
@@ -1346,117 +1353,124 @@ macro_rules! define_ec_core {
                 w.set_cond(&Fq::ONE, set1);
                 w.set_condneg(set1 & neg1);
                 (w, ok)
-            }
+            } 
 
-            fn normalize(self) {
+            /// Compute the isomorphism constants between two Montgomery curves.
+            pub fn ec_isomorphism(self, to_A: Fq) -> ECIsomorphism {
+                let mut t1 = self.A.square();
+                let mut t2 = to_A.square();
+                let mut x = Fq::THREE - t1; // x = (3 - A1^2)
+                let mut z = Fq::THREE - t2; // z = (3 - A1^2)
+                t1 *= self.A;
+                t2 *= to_A;
+                x *= t2.mul2() - self.A.mul3().mul3(); // x = (2 * A2^3 - 9 * A2) * (3 - A1^2)
+                z *= t1.mul2() - to_A.mul3().mul3(); // x = (2 * A1^3 - 9 * A1) * (3 - A2^2)
+
+                // x = 3*lambda_x
+                // z = lambda_x * A1 - lambda_z * A2
+                // d = 3*lambda_z
+                let d = z.mul3();
+                z = x * self.A - z * to_A;
+                x.set_mul3();
+
+                ECIsomorphism {Nx: x, Nz: z, D: d}
+
                 /*
-                fp2_t t0, t1, t2, t3, t4, t5;
-                // Compute the other solutions:
-                // A'^2 = [ sqrt(A^2-4C^2)*(9C^2-A^2) +- (A^3-3AC^2) ] / [ 2C^2*sqrt(A^2-4C^2) ]
-                fp2_sqr(&t0, &old->C);      //C^2
-                fp2_add(&t1, &t0, &t0);     //2C^2
-                fp2_add(&t2, &t1, &t1);     //4C^2
-                fp2_sqr(&t3, &old->A);      //A^2
-                fp2_sub(&t2, &t3, &t2);     //A^2-4C^2
-                fp2_sqrt(&t2);              //sqrt(A^2-4C^2)
-                fp2_add(&t0, &t0, &t1);     //3C^2
-                fp2_mul(&t1, &t2, &t1);     //2C^2*sqrt(A^2-4C^2)
-                fp2_sub(&t5, &t3, &t0);     //A^2-3C^2
-                fp2_mul(&t5, &t5, &old->A);     //A^3-3AC^2
-                fp2_add(&t4, &t0, &t0);     //6C^2
-                fp2_add(&t0, &t4, &t0);     //9C^2
-                fp2_sub(&t0, &t0, &t3);     //9C^2-A^2
-                fp2_add(&t3, &t3, &t3);     //2A^2
-                fp2_mul(&t3, &t3, &t2);     //2A^2*sqrt(A^2-4C^2)
-                fp2_mul(&t2, &t2, &t0);     //sqrt(A^2-4C^2)*(9C^2-A^2)
-                fp2_add(&t0, &t2, &t5);     //sqrt(A^2-4C^2)*(9C^2-A^2) + (A^3-3AC^2)
-                fp2_sub(&t2, &t2, &t5);     //sqrt(A^2-4C^2)*(9C^2-A^2) - (A^3-3AC^2)
-                fp2_inv(&t1);               //1/2C^2*sqrt(A^2-4C^2)
-                fp2_mul(&t0, &t0, &t1);     // First solution
-                fp2_mul(&t2, &t2, &t1);     // Second solution
-                fp2_mul(&t1, &t3, &t1);     // Original solution
-
-                // Chose the lexicographically first solution
-                if(fp2_cmp(&t0, &t1)==1)
-                    fp2_copy(&t0, &t1);
-                if(fp2_cmp(&t0, &t2)==1)
-                    fp2_copy(&t0, &t2);
-
-                // Copy the solution
-                fp2_sqrt(&t0);
-                ec_curve_t E;
-                fp2_copy(&E.A, &t0);
-                fp_mont_setone(E.C.re);
-                fp_set(E.C.im, 0);
-                ec_isomorphism(isom, old, &E);
-                fp2_copy(&new->A, &E.A);
-                fp2_copy(&new->C, &E.C);
+                TODO
+                if self.A == to_A {
+                    return ECIsomorphism {
+                        Nx: Fq::ZERO, // R
+                        Nz: Fq::ONE, // U
+                        D: Fq::THREE,
+                    };
+                } else if self.A == -to_A {
+                    let (sqrt, _) = Fq::MINUS_ONE.sqrt();
+                    // Note: there are two possible square roots, we change it to the other to be compatible with Sage code:
+                    // sqrt.set_neg();
+                    return ECIsomorphism {
+                        Nx: Fq::ZERO, // R
+                        Nz: sqrt, // U
+                        D: Fq::THREE,
+                    };
+                } else {
+                    // R = (A^2 + Aprime^2 - 6) * A / (A^2 + 2*Aprime^2 - 9)
+                    // TODO: optimize
+                    let six = Fq::new(&Fp::from_i32(6), &Fp::ZERO);
+                    let nine = Fq::new(&Fp::from_i32(9), &Fp::ZERO);
+                    let A2 = self.A.square();
+                    let Aprime2 = to_A.square();
+                    let num = (A2 + Aprime2 - six) * self.A;
+                    let denom = A2 + Aprime2.mul2() - nine;
+                    let denom_inv = denom.invert();
+                    let R = num * denom_inv;
+                    // U = Aprime / (A - 3*R)
+                    let U_denom_inv = self.A - R.mul3().invert();
+                    let U = &to_A * &U_denom_inv;
+                    
+                    return ECIsomorphism {
+                        Nx: R, // R
+                        Nz: U, // U
+                        D: Fq::THREE,
+                    };
+                }
                 */
 
-                let t0 = Fq::ONE;
-                let t1 = &t0 + &t0;
-                // t2 = 4C^2
-                let t2 = &t1 + &t1;
-                // t3 = A^2
-                let t3 = self.A.square();
-                // t2 = A^2 - 4C^2
-                let t2 = &t3 - &t2;
-                // t2 = sqrt(A^2 - 4C^2)
-                let (t2, r) = t2.sqrt();
+            }
+
+            /// Normalize the curve to a unique representative.
+            /// MontgomeryNormalize algorithm from SQISign specification.
+            fn normalize(self) -> (Curve, ECIsomorphism) {
+                let mut z0 = self.A.square();
+                let three = Fq::THREE;
+                let four = Fq::FOUR;
+                let nine = Fq::new(&Fp::from_i32(9), &Fp::ZERO);
+                let t0 = nine - &z0;               // 9 - A^2
+                let (mut t1, r) = (z0 - &four).sqrt(); // sqrt(A^2 - 4)
                 assert!(r == 0xFFFFFFFF);
-                // t0 = 3C^2
-                let t0 = &t0 + &t1;
-                // t1 = 2C^2 * sqrt(A^2-4C^2)
-                let t1 = &t2 * &t1;
-                // t5 = A^2 - 3C^2
-                let t5 = &t3 - &t0;
-                // t5 = A^3 - 3AC^2
-                let t5 = &t5 * &self.A;
-                // t4 = 6C^2
-                let t4 = &t0 + &t0;
-                // t0 = 9C^2
-                let t0 = &t4 + &t0;
-                // t0 = 9C^2 - A^2
-                let t0 = &t0 - &t3;
-                // t3 = 2A^2
-                let t3 = &t3 + &t3;
-                // t3 = 2A^2 * sqrt(A^2-4C^2)
-                let t3 = &t3 * &t2;
-                // t2 = sqrt(A^2-4C^2) * (9C^2-A^2)
-                let t2 = &t2 * &t0;
-                // t0 = sqrt(A^2-4C^2)*(9C^2-A^2) + (A^3-3AC^2)
-                let t0 = &t2 + &t5;
-                // t2 = sqrt(A^2-4C^2)*(9C^2-A^2) - (A^3-3AC^2)
-                let t2 = &t2 - &t5;
-                // t1 = 1/(2C^2*sqrt(A^2-4C^2))
-                let t1 = t1.invert();
-                // t0 = first solution
-                let t0 = &t0 * &t1;
-                // t2 = second solution
-                let t2 = &t2 * &t1;
-                // t1 = original solution
-                let t1 = &t3 * &t1;
+                t1 = t1.mul2();               // 2 * sqrt(A^2 - 4)
+                let denom = t1.invert();        // 1 / (2 * sqrt(A^2 - 4))
 
-                // Choose the lex smallest solution
-                let mut sol = t0.clone();
+                let t2 = t0 * t1;        // (9 - A^2) * 2 * sqrt(A^2 - 4)
+                let t3 = (z0 - &three) * self.A; // A^3 - 3A
+                let num1 = t2 + t3;
+                let num2 = t2 - t3;
+                let z1 = num1 * denom;
+                let z2 = num2 * denom;
 
-                /*
-                if sol > t1 { sol = t1.clone(); }
-                if sol > t2 { sol = t2.clone(); }
+                if z0 > z1 {
+                    z0 = z1;
+                } 
+                if z0 > z2 {
+                    z0 = z2;
+                }
 
-                let (sol, r1) = sol.sqrt();
-                assert!(r1 == 0xFFFFFFFF);
-                */
-                println!("");
-                println!("t0: {}", t0);
-                println!("");
-                println!("t1: {}", t1);
-                println!("");
-                println!("t2: {}", t2);
-                println!("");
+                let (mut new_curve_A, mut r) = z0.sqrt();
+                // TODO:
+                // assert!(r == 0xFFFFFFFF);
+                if r != 0xFFFFFFFF {
+                    (new_curve_A, r) = z1.sqrt();
+                    if r != 0xFFFFFFFF {
+                        (new_curve_A, r) = z2.sqrt();
+                        assert!(r == 0xFFFFFFFF);
+                    }
+                }
 
+                let isom = self.ec_isomorphism(new_curve_A);
+                let curve = Curve::new(&new_curve_A);
+
+                (curve, isom)
             }
+
+            pub fn ec_iso_eval(self, P: &mut Point, isom: &ECIsomorphism) {
+                let tmp = &P.Z * &isom.Nz;
+                P.X = &P.X * &isom.Nx;
+                P.X -= &tmp; // TODO: or +
+                P.Z *= &isom.D;
+            }
+
         }
+
+        
 
         impl fmt::Display for Curve {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
