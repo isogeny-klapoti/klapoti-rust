@@ -115,7 +115,18 @@ macro_rules! define_klapoti {
                 println!("");
                 println!("-?-?-?-?");
                 println!("");
-                println!("new_curve.A: {}", new_curve);
+                println!("curve: {}", curve);
+                println!("");
+                println!("curve j_inv: {}", curve.j_invariant());
+
+                println!("");
+                println!("");
+                println!("");
+                println!("new_curve: {}", new_curve);
+                println!("");
+                println!("new curve j_inv: {}", new_curve.j_invariant());
+                println!("");
+                println!("");
                 println!("");
                 println!("R: {}, {}", R.X / R.Z, R.Y / R.Z);
                 println!("");

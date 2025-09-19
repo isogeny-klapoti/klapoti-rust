@@ -249,6 +249,25 @@ macro_rules! define_ec_core {
                 }
             }
 
+            pub fn j_invariant(self) -> Fq {
+                let mut j = self.A.square();
+                let mut t1 = Fq::ONE;
+                let mut t0 = Fq::TWO;
+                t0 = j - t0;
+                t0 -= t1;
+                j = t0 - t1;
+                t1.set_square();
+                j *= t1;
+                t0.set_mul4();
+                t1 = t0.square();
+                t0 *= t1;
+                t0.set_mul4();
+                j.set_invert();
+                j *= t0;
+
+                j
+            }
+
             /// Set the point to the provided affine coordinate.
             /// IMPORTANT: this function does NOT check that the point is
             /// really part of the curve.
@@ -1372,8 +1391,65 @@ macro_rules! define_ec_core {
                 let d = z.mul3();
                 z = x * self.A - z * to_A;
                 x.set_mul3();
-
                 ECIsomorphism {Nx: x, Nz: z, D: d}
+
+                /*
+                let mut t0 = self.A.square();
+                let mut t1 = to_A.square();
+                let mut t2 = Fq::ONE;
+                let mut t3 = t2 + t2;
+                t2 = t3 + t2;
+                t3 = t2 - t0;
+                let mut t4 = t2 - t1;
+                t3 = t3.invert();
+                t4 = t4 * t3;
+                let (mut t4, r) = t4.sqrt();
+                assert!(r == 0xFFFFFFFF);
+                t3 = t4.square();
+                t3 = t3 * t4;
+
+                // Check sign of lambda^2, such that lambda^6 has the right sign
+                t0 = Fq::ONE;
+                t1 = t0 + t0;
+                t1 = t1 + t1;
+                t1 = t1 + t1;
+                t0 = t0 + t1;
+                t2 = self.A.square();
+                t2 = t2 + t2;
+                t2 = t2 - t0;
+                t2 = t2 * self.A;
+                t0 = Fq::ONE;
+                t2 = t2 * t0;
+                t3 = t3 * t2;
+                t1 = t0 + t0;
+                t1 = t1 + t1;
+                t1 = t1 + t1;
+                t0 = t0 + t1;
+                t2 = to_A.square();
+                t2 = t2 + t2;
+                t2 = t2 - t0;
+                t2 = t2 * to_A;
+                t0 = Fq::ONE;
+                t2 = t2 * t0;
+
+                if t2.equals(&t3) != 0xFFFFFFFF{
+                    t4 = -t4;
+                }
+
+                // Mont -> SW -> SW -> Mont
+                // fp_mont_setone(t0.re);
+                // fp_set(t0.im, 0);
+                t0 = Fq::ONE;
+
+                let mut d = t0 + t0;
+                d = d + t0;
+                let nx = d * t4;
+                t4 = t4 * self.A;
+                t0 = to_A;
+                let nz = t0 - t4;
+
+                ECIsomorphism {Nx: nx, Nz: nz, D: d}
+                */
 
                 /*
                 TODO
@@ -1424,9 +1500,10 @@ macro_rules! define_ec_core {
                 let three = Fq::THREE;
                 let four = Fq::FOUR;
                 let nine = Fq::new(&Fp::from_i32(9), &Fp::ZERO);
-                let t0 = nine - &z0;               // 9 - A^2
                 let (mut t1, r) = (z0 - &four).sqrt(); // sqrt(A^2 - 4)
                 assert!(r == 0xFFFFFFFF);
+                /*
+                let t0 = nine - &z0;               // 9 - A^2
                 t1 = t1.mul2();               // 2 * sqrt(A^2 - 4)
                 let denom = t1.invert();        // 1 / (2 * sqrt(A^2 - 4))
 
@@ -1436,6 +1513,22 @@ macro_rules! define_ec_core {
                 let num2 = t2 - t3;
                 let z1 = num1 * denom;
                 let z2 = num2 * denom;
+                */
+                // TODO
+                let A2 = self.A.square();
+                let A4 = A2.square();
+
+                let thirteen = Fq::new(&Fp::from_i32(13), &Fp::ZERO);
+                let three6 = Fq::new(&Fp::from_i32(36), &Fp::ZERO);
+                let foo = (z0 - &four);
+                let (foo_sqrt, r) = foo.sqrt();
+                assert!(r == 0xFFFFFFFF);
+                let t0 = -(A4 - thirteen * A2 + three6);
+                let t1 = self.A * (A2 - &three) * foo_sqrt;
+
+                let z1 = (t0 + t1) / (foo.mul2());
+                let z2 = (t0 - t1) / (foo.mul2());
+
 
                 if z0 > z1 {
                     z0 = z1;
@@ -1444,7 +1537,7 @@ macro_rules! define_ec_core {
                     z0 = z2;
                 }
 
-                let (mut new_curve_A, mut r) = z0.sqrt();
+                let (mut new_curve_A, mut r) = z1.sqrt();
                 // TODO:
                 // assert!(r == 0xFFFFFFFF);
                 if r != 0xFFFFFFFF {
