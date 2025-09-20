@@ -1379,122 +1379,32 @@ macro_rules! define_ec_core {
                 let mut t1 = self.A.square();
                 let mut t2 = to_A.square();
                 let mut x = Fq::THREE - t1; // x = (3 - A1^2)
-                let mut z = Fq::THREE - t2; // z = (3 - A1^2)
+                let mut z = Fq::THREE - t2; // z = (3 - A2^2)
                 t1 *= self.A;
                 t2 *= to_A;
-                x *= t2.mul2() - self.A.mul3().mul3(); // x = (2 * A2^3 - 9 * A2) * (3 - A1^2)
-                z *= t1.mul2() - to_A.mul3().mul3(); // x = (2 * A1^3 - 9 * A1) * (3 - A2^2)
+                x *= t2.mul2() - to_A.mul3().mul3(); // x = (2 * A2^3 - 9 * A2) * (3 - A1^2)
+                z *= t1.mul2() - self.A.mul3().mul3(); // x = (2 * A1^3 - 9 * A1) * (3 - A2^2)
 
                 // x = 3*lambda_x
                 // z = lambda_x * A1 - lambda_z * A2
                 // d = 3*lambda_z
                 let d = z.mul3();
                 z = x * self.A - z * to_A;
+                // z = z * to_A - x * self.A;
+
                 x.set_mul3();
                 ECIsomorphism {Nx: x, Nz: z, D: d}
+            }
 
-                /*
-                let mut t0 = self.A.square();
-                let mut t1 = to_A.square();
-                let mut t2 = Fq::ONE;
-                let mut t3 = t2 + t2;
-                t2 = t3 + t2;
-                t3 = t2 - t0;
-                let mut t4 = t2 - t1;
-                t3 = t3.invert();
-                t4 = t4 * t3;
-                let (mut t4, r) = t4.sqrt();
-                assert!(r == 0xFFFFFFFF);
-                t3 = t4.square();
-                t3 = t3 * t4;
-
-                // Check sign of lambda^2, such that lambda^6 has the right sign
-                t0 = Fq::ONE;
-                t1 = t0 + t0;
-                t1 = t1 + t1;
-                t1 = t1 + t1;
-                t0 = t0 + t1;
-                t2 = self.A.square();
-                t2 = t2 + t2;
-                t2 = t2 - t0;
-                t2 = t2 * self.A;
-                t0 = Fq::ONE;
-                t2 = t2 * t0;
-                t3 = t3 * t2;
-                t1 = t0 + t0;
-                t1 = t1 + t1;
-                t1 = t1 + t1;
-                t0 = t0 + t1;
-                t2 = to_A.square();
-                t2 = t2 + t2;
-                t2 = t2 - t0;
-                t2 = t2 * to_A;
-                t0 = Fq::ONE;
-                t2 = t2 * t0;
-
-                if t2.equals(&t3) != 0xFFFFFFFF{
-                    t4 = -t4;
-                }
-
-                // Mont -> SW -> SW -> Mont
-                // fp_mont_setone(t0.re);
-                // fp_set(t0.im, 0);
-                t0 = Fq::ONE;
-
-                let mut d = t0 + t0;
-                d = d + t0;
-                let nx = d * t4;
-                t4 = t4 * self.A;
-                t0 = to_A;
-                let nz = t0 - t4;
-
-                ECIsomorphism {Nx: nx, Nz: nz, D: d}
-                */
-
-                /*
-                TODO
-                if self.A == to_A {
-                    return ECIsomorphism {
-                        Nx: Fq::ZERO, // R
-                        Nz: Fq::ONE, // U
-                        D: Fq::THREE,
-                    };
-                } else if self.A == -to_A {
-                    let (sqrt, _) = Fq::MINUS_ONE.sqrt();
-                    // Note: there are two possible square roots, we change it to the other to be compatible with Sage code:
-                    // sqrt.set_neg();
-                    return ECIsomorphism {
-                        Nx: Fq::ZERO, // R
-                        Nz: sqrt, // U
-                        D: Fq::THREE,
-                    };
-                } else {
-                    // R = (A^2 + Aprime^2 - 6) * A / (A^2 + 2*Aprime^2 - 9)
-                    // TODO: optimize
-                    let six = Fq::new(&Fp::from_i32(6), &Fp::ZERO);
-                    let nine = Fq::new(&Fp::from_i32(9), &Fp::ZERO);
-                    let A2 = self.A.square();
-                    let Aprime2 = to_A.square();
-                    let num = (A2 + Aprime2 - six) * self.A;
-                    let denom = A2 + Aprime2.mul2() - nine;
-                    let denom_inv = denom.invert();
-                    let R = num * denom_inv;
-                    // U = Aprime / (A - 3*R)
-                    let U_denom_inv = self.A - R.mul3().invert();
-                    let U = &to_A * &U_denom_inv;
-                    
-                    return ECIsomorphism {
-                        Nx: R, // R
-                        Nz: U, // U
-                        D: Fq::THREE,
-                    };
-                }
-                */
-
+            // TODO: self not needed
+            pub fn ec_iso_eval(self, P: &mut Point, isom: &ECIsomorphism) {
+                P.X *= isom.Nx;
+                let tmp = isom.Nz * P.Z;
+                P.X += tmp;
+                P.Z *= isom.D;
             }
 
             /// Normalize the curve to a unique representative.
-            /// MontgomeryNormalize algorithm from SQISign specification.
             fn normalize(self) -> (Curve, ECIsomorphism) {
                 let mut z0 = self.A.square();
                 let three = Fq::THREE;
@@ -1553,14 +1463,6 @@ macro_rules! define_ec_core {
 
                 (curve, isom)
             }
-
-            pub fn ec_iso_eval(self, P: &mut Point, isom: &ECIsomorphism) {
-                let tmp = &P.Z * &isom.Nz;
-                P.X = &P.X * &isom.Nx;
-                P.X -= &tmp; // TODO: or +
-                P.Z *= &isom.D;
-            }
-
         }
 
         

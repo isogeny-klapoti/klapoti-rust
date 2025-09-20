@@ -8,7 +8,7 @@ macro_rules! define_klapoti {
         use crate::quaternion::quaternion_algebra::{QuatAlg, QuatAlgEl};
         use crate::quaternion::quaternion_ideal::QuaternionIdeal;
         use crate::quaternion::quaternion_order::QuaternionOrder;
-        use crate::util::{big_to_bytes, valuation};
+        use crate::util::{big_to_bytes, valuation, bytes_from_str};
         use std::time::Instant;
         use num_traits::Pow;
         use std::collections::HashMap;
@@ -74,6 +74,9 @@ macro_rules! define_klapoti {
 
                 let order_foo = point_order_2e(curve, P, valuation_2); // TODO: remove
                 println!("");
+                println!("");
+                println!("P: {}, {}", P.X / P.Z, P.Y / P.Z);
+                println!("");
                 println!("order P: {}", order_foo);
                 println!("");
 
@@ -82,19 +85,70 @@ macro_rules! define_klapoti {
                 println!("order Q: {}", order_foo);
                 println!("");
                 println!("");
-                println!("");
-                println!("");
                 println!("================ 222222222222");
                 println!("");
 
-
                 // TODO:
                 let (new_curve, isom) = curve.normalize();
+
+                // debugging:
+
+                /*
+                let A = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "391445534551727754042073415781261129225909433127875328481880025099125854529",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "126312833894690366570222495365935900022506635855608241432505269104772913115",
+                    )),
+                );
+                let curve = Curve::new(&A);
+
+                let A = Fq::new(
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "257080431355799323930887155675955656150251632553195240471411975708602068808",
+                    )),
+                    &Fp::decode_reduce(&bytes_from_str(
+                        "822030939549502165740639031266922394362778733596865188673890693817092432000",
+                    )),
+                );
+                let new_curve = Curve::new(&A);
+                */
+
 
                 new_curve.ec_iso_eval(&mut P, &isom);
                 new_curve.ec_iso_eval(&mut Q, &isom);
                 new_curve.ec_iso_eval(&mut omegaP, &isom);
                 new_curve.ec_iso_eval(&mut omegaQ, &isom);
+
+                let Px = PointX::new_xz(&P.X, &P.Z);
+                let (P, _) = new_curve.complete_pointX(&Px);
+
+                let Qx = PointX::new_xz(&Q.X, &Q.Z);
+                let (Q, _) = new_curve.complete_pointX(&Qx);
+
+                let omegaPx = PointX::new_xz(&omegaP.X, &omegaP.Z);
+                let (omegaP, _) = new_curve.complete_pointX(&omegaPx);
+
+                let omegaQx = PointX::new_xz(&omegaQ.X, &omegaQ.Z);
+                let (omegaQ, _) = new_curve.complete_pointX(&omegaQx);
+
+
+                // debugging
+                /*
+                let isom_inv = new_curve.ec_isomorphism(curve.A);
+
+                new_curve.ec_iso_eval(&mut P, &isom_inv);
+
+                println!("");
+                println!("P: {}, {}", P.X / P.Z, P.Y / P.Z);
+                println!("");
+                println!("-P: {}, {}", P.X / P.Z, -P.Y / P.Z);
+                println!("");
+                */
+                // end debugging
+
+
                 
                 let order_foo = point_order_2e(new_curve, P, valuation_2); // TODO: remove
                 println!("");
