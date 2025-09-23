@@ -29,15 +29,12 @@ macro_rules! define_ec_helpers {
             }
         }
 
-        pub fn mylogfun<'a>(
+        pub fn prepare_dlog_solver<'a>(
             E: &'a Curve,
             P: &'a Point,
             Q: &'a Point,
             k0: usize,
         ) -> impl Fn(&Point) -> (Integer, Integer) + 'a {
-            // Compute v = P.weil_pairing(Q, 2^k0)
-            // let v = P.weil_pairing(Q, 1 << k0);
-
             let (v, ok) = E.weil_pairing_2exp(k0 as usize, &P, &Q);
             assert_eq!(ok, 0xFFFFFFFF);
 
@@ -48,13 +45,6 @@ macro_rules! define_ec_helpers {
                 vs.push(last.square());
             }
 
-            println!("\nmylogfun\n");
-            println!("v: {}", v);
-            println!();
-            // println!("vs: {:?}", vs);
-            println!();
-
-            // assert_eq!(vs.last().unwrap(), -&Fq::ONE);
             vs.push(Fq::ONE);
             vs.reverse();
 
@@ -64,17 +54,14 @@ macro_rules! define_ec_helpers {
                 k: usize,
                 vs: &[Fq],
             ) -> Integer {
-                assert!(k >= 0);
                 if k == 0 {
-                    // assert!(w.is_one());
                     return 0.big();
                 }
                 let w2 = w.square();
                 let r = dlog(&w2, k - 1, vs);
 
                 let bytes = big_to_bytes(r.clone());
-                if vs[k].pow(&bytes, bytes.len() * 8).equals(w) != 0xFFFFFFFF { // TODO: equals
-                    // return r + (1 << (k - 1));
+                if vs[k].pow(&bytes, bytes.len() * 8).equals(w) != 0xFFFFFFFF {
                     return r + 2.big().pow(k as u32 - 1)
                 }
 
@@ -86,27 +73,11 @@ macro_rules! define_ec_helpers {
                 let (wa, ok) = E.weil_pairing_2exp(k0 as usize, &T, &Q);
                 assert_eq!(ok, 0xFFFFFFFF);
 
-                println!("wa: {}", wa);
-                println!("");
-
                 let (wb, ok) = E.weil_pairing_2exp(k0 as usize, &P, &T);
                 assert_eq!(ok, 0xFFFFFFFF);
 
-                println!("wb: {}", wb);
-                println!("");
-
-                // let wa = T.weil_pairing(Q, 1 << k0);
-                // let wb = P.weil_pairing(T, 1 << k0);
                 let a = dlog(&wa, k0, &vs);
-
-                println!("a: {}", a);
-                println!("");
-
                 let b = dlog(&wb, k0, &vs);
-
-                println!("b: {}", b);
-                println!("");
-
                 // assert!(&(P * Scalar::from(a) + Q * Scalar::from(b)) == T);
 
                 (a, b)

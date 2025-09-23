@@ -8,7 +8,7 @@ macro_rules! define_klapoti {
         use crate::quaternion::quaternion_algebra::{QuatAlg, QuatAlgEl};
         use crate::quaternion::quaternion_ideal::QuaternionIdeal;
         use crate::quaternion::quaternion_order::QuaternionOrder;
-        use crate::util::{big_to_bytes, valuation, bytes_from_str};
+        use crate::util::{big_to_bytes, valuation};
         use std::time::Instant;
         use num_traits::Pow;
         use std::collections::HashMap;
@@ -68,54 +68,11 @@ macro_rules! define_klapoti {
                 mut Q: Point,
                 mut omegaP: Point,
                 mut omegaQ: Point,
-                valuation_2: u32, // TODO: move
-                cofactor: u32, // TODO: move
+                valuation_2: u32,
+                cofactor: u32,
             ) -> Self {
 
-                let order_foo = point_order_2e(curve, P, valuation_2); // TODO: remove
-                println!("");
-                println!("");
-                println!("P: {}, {}", P.X / P.Z, P.Y / P.Z);
-                println!("");
-                println!("order P: {}", order_foo);
-                println!("");
-
-                let order_foo = point_order_2e(curve, Q, valuation_2); // TODO: remove
-                println!("");
-                println!("order Q: {}", order_foo);
-                println!("");
-                println!("");
-                println!("================ 222222222222");
-                println!("");
-
-                // TODO:
                 let (new_curve, isom) = curve.normalize();
-
-                // debugging:
-
-                /*
-                let A = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "391445534551727754042073415781261129225909433127875328481880025099125854529",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "126312833894690366570222495365935900022506635855608241432505269104772913115",
-                    )),
-                );
-                let curve = Curve::new(&A);
-
-                let A = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "257080431355799323930887155675955656150251632553195240471411975708602068808",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "822030939549502165740639031266922394362778733596865188673890693817092432000",
-                    )),
-                );
-                let new_curve = Curve::new(&A);
-                */
-
-
                 new_curve.ec_iso_eval(&mut P, &isom);
                 new_curve.ec_iso_eval(&mut Q, &isom);
                 new_curve.ec_iso_eval(&mut omegaP, &isom);
@@ -133,69 +90,11 @@ macro_rules! define_klapoti {
                 let omegaQx = PointX::new_xz(&omegaQ.X, &omegaQ.Z);
                 let (omegaQ, _) = new_curve.complete_pointX(&omegaQx);
 
-
-                // debugging
-                /*
-                let isom_inv = new_curve.ec_isomorphism(curve.A);
-
-                new_curve.ec_iso_eval(&mut P, &isom_inv);
-
-                println!("");
-                println!("P: {}, {}", P.X / P.Z, P.Y / P.Z);
-                println!("");
-                println!("-P: {}, {}", P.X / P.Z, -P.Y / P.Z);
-                println!("");
-                */
-                // end debugging
-
-
-                
-                let order_foo = point_order_2e(new_curve, P, valuation_2); // TODO: remove
-                println!("");
-                println!("order P: {}", order_foo); // is 0 now !!!!!!!!!!!!!!!, the isomorphism mapping doesn't work properly
-                println!("");
-
-                let order_foo = point_order_2e(new_curve, Q, valuation_2); // TODO: remove
-                println!("");
-                println!("order Q: {}", order_foo); // is 0 now !!!!!!!!!!!!!!!
-                println!("");
-
                 let bytes = big_to_bytes(2.big().pow(valuation_2 - 1));
-
-                // let R = generate_random_fq(&curve, (valuation_2 - 1).big(), cofactor.big()); // TODO: remove
-                let R = generate_random_fq(&new_curve, (valuation_2 - 1).big(), cofactor.big()); // TODO: enable
-
-                println!("");
-                println!("");
-                println!("-?-?-?-?");
-                println!("");
-                println!("curve: {}", curve);
-                println!("");
-                println!("curve j_inv: {}", curve.j_invariant());
-
-                println!("");
-                println!("");
-                println!("");
-                println!("new_curve: {}", new_curve);
-                println!("");
-                println!("new curve j_inv: {}", new_curve.j_invariant());
-                println!("");
-                println!("");
-                println!("");
-                println!("R: {}, {}", R.X / R.Z, R.Y / R.Z);
-                println!("");
-
-                // debugging:
-                let order_foo = point_order_2e(new_curve, R, valuation_2); // TODO: remove
-                // let order_foo = point_order_2e(curve, R, valuation_2);
-                println!("");
-                println!("order_foo: {}", order_foo);
-                println!("");
-
+                let R = generate_random_fq(&new_curve, (valuation_2 - 1).big(), cofactor.big());
                 
                 let mut S;
                 loop {
-                    println!("loop");
                     S = generate_random_fq(&new_curve, (valuation_2 - 1).big(), cofactor.big());
                     let (w, ok) = new_curve.weil_pairing_2exp(valuation_2 as usize, &R, &S);
                     assert_eq!(ok, 0xFFFFFFFF);
@@ -206,184 +105,14 @@ macro_rules! define_klapoti {
                     } 
                 }
                 
-                println!("");
-                println!("========");
-                println!("");
-                println!("out of loop");
+                let dlog = prepare_dlog_solver(&new_curve, &P, &Q, valuation_2 as usize);
+                let rdlog = dlog(&R);
+                let sdlog = dlog(&S);
 
-                /*
-                let A = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "87588114400902199998338770337694739636315554156424733587465955178621864700",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "619983003027140970448668231864152961217819436005861629692568717681019587071",
-                    )),
-                );
-                let new_curve = Curve::new(&A);
-
-                let Px = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "640262070225397919641419391798411906185192704400982985445972594570331098653",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "287810177297146274761114922305202226260110532495201421327960422009294927864",
-                    )),
-                );
-                let Py = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "457788924259115902463588305888251116114261190788876950068401387037922249228",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "633138429939111716122288253451612328751828562769273084337837985144875427010",
-                    )),
-                );
-                let P = Point {
-                    X: Px,
-                    Y: Py,
-                    Z: Fq::ONE,
-                };
-
-                let Px = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "577933924249040245437036418717899949221523555485972514647508407144730672525",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "1019387042211059007922076628149515744324272062266127407040430254585022649375",
-                    )),
-                );
-                let Py = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "509394661907087766331273068402842237724830983103433527961227534947863445264",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "725385452187303835136549965145606007505912062894778454060531039947591434989",
-                    )),
-                );
-                let Q = Point {
-                    X: Px,
-                    Y: Py,
-                    Z: Fq::ONE,
-                };
-                */
-
-
-                // omegaP, omegaQ
-
-                /*
-                let Px = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "634039621850969308805385027694276169360651609855271563211520020735844785215",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "1075188422265331762811290023078590423058046429393430765873987622134783102482",
-                    )),
-                );
-                let Py = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "1097972323119634683247217098336541543090612946284328422947693398582605586101",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "220599266309031818624969048679582813355156390507263420502962613496935193172",
-                    )),
-                );
-                let omegaP = Point {
-                    X: Px,
-                    Y: Py,
-                    Z: Fq::ONE,
-                };
-
-                let Px = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "986992327121915758581192528730652032676947074727662307563723961364053414999",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "921059537265102690615221739730873763647293364847969554649992493452361646901",
-                    )),
-                );
-                let Py = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "74607066523784015036897537654048456971960892140972951534399235879024055198",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "371448068294077661734717191164184817605554068703830199822253857365493561338",
-                    )),
-                );
-                let omegaQ = Point {
-                    X: Px,
-                    Y: Py,
-                    Z: Fq::ONE,
-                };
-                */
-
-
-                /*
-                let Px = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "925473869824409399843652150961237538577304088344928976475296163379511372554",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "116287816262904234454738007257879993288471265874250810570974463204167683390",
-                    )),
-                );
-                let Py = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "1015993309849213971252813187901840334758687159880946344187583207756725238062",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "957009723818330665698232654864907677082438236295236482958661892033234280556",
-                    )),
-                );
-                let R = Point {
-                    X: Px,
-                    Y: Py,
-                    Z: Fq::ONE,
-                };
-
-                let Px = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "838916474589319857260876467036924575254055493201918407630183323525256184301",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "1116028115080817570187543946914933769013649727010082549357974164345300672012",
-                    )),
-                );
-                let Py = Fq::new(
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "227413930184305938291645565787496783486997670939025411806399471552837775354",
-                    )),
-                    &Fp::decode_reduce(&bytes_from_str(
-                        "69513907430609967024884397322368381340309250746433465152060923612821002173",
-                    )),
-                );
-                let S = Point {
-                    X: Px,
-                    Y: Py,
-                    Z: Fq::ONE,
-                };
-                */
-
-                let mylog = mylogfun(&new_curve, &P, &Q, valuation_2 as usize);
-
-                println!("");
-                println!("after mylogfun");
-                println!("");
-
-                let roo = mylog(&R);
-                println!("");
-                println!("after mylog(R)");
-                println!("");
-
-                let soo = mylog(&S);
-
-                println!("");
-                println!("after mylog(S)");
-                println!("");
-
-                let a = roo.0.clone();
-                let b = roo.1.clone();
-                let c = soo.0.clone();
-                let d = soo.1.clone();
+                let a = rdlog.0.clone();
+                let b = rdlog.1.clone();
+                let c = sdlog.0.clone();
+                let d = sdlog.1.clone();
 
                 let mut mat = Matrix::<Integer>::zeros(4, 4);
                 mat[(0, 0)] = a.clone();
@@ -399,24 +128,22 @@ macro_rules! define_klapoti {
                 let m10 = ((-c).modulo(&m) * det_inv.clone()).modulo(&m);
                 let m11 = (a * det_inv).modulo(&m);
 
-
                 let mut mat_inv = Matrix::<Integer>::zeros(4, 4);
                 mat_inv[(0, 0)] = m00;
                 mat_inv[(0, 1)] = m01;
                 mat_inv[(1, 0)] = m10;
                 mat_inv[(1, 1)] = m11;
- 
-                let omega_roo = mylog(&omegaP);
-                let omega_soo = mylog(&omegaQ);
-
+                
+                let omega_rdlog = dlog(&omegaP);
+                let omega_dlog = dlog(&omegaQ);
 
                 let mut mat_om = Matrix::<Integer>::zeros(4, 4);
-                mat_om[(0, 0)] = omega_roo.0.clone();
-                mat_om[(0, 1)] = omega_roo.1.clone();
-                mat_om[(1, 0)] = omega_soo.0.clone();
-                mat_om[(1, 1)] = omega_soo.1.clone();
+                mat_om[(0, 0)] = omega_rdlog.0.clone();
+                mat_om[(0, 1)] = omega_rdlog.1.clone();
+                mat_om[(1, 0)] = omega_dlog.0.clone();
+                mat_om[(1, 1)] = omega_dlog.1.clone();
 
-                let omega_RS = mat * mat_om * mat_inv; // TODO: apply modulo?
+                let omega_RS = mat * mat_om * mat_inv;
 
                 let mut bytes = big_to_bytes(omega_RS[(0, 0)].clone());
                 let mut T1 = new_curve.mul(&R, &bytes, bytes.len() * 8);
@@ -429,11 +156,6 @@ macro_rules! define_klapoti {
                 bytes = big_to_bytes(omega_RS[(1, 1)].clone());
                 T2 = new_curve.mul(&S, &bytes, bytes.len() * 8);
                 let omegaS = new_curve.add(&T1, &T2);
-
-                println!("");
-                println!("omegaR: {}", omegaR.X / omegaR.Z);
-                println!("");
-                println!("omegaS: {}", omegaS.X / omegaS.Z);
 
                 Self {
                     curve: new_curve,
@@ -579,28 +301,10 @@ macro_rules! define_klapoti {
                 let norm_c = gamma_c.reduced_norm() / ideal_norm.clone();
                 let norm_c = norm_c.numer();
 
-                // let norm_b = "4565924146296632737235756772431642587386221405171208750233525117839286963".big();
-                // let norm_c = "2501464112816904581097433230540031475923714182331267082252899687331192141".big();
-
                 // The ideal b * c.conj() is principal. The generator is gamma_b.conjugate() * gamma_c / ideal.norm().
 
                 let mut gamma = (gamma_b.conjugate() * gamma_c.clone()) / ideal_norm.clone();
                 gamma = gamma.normalize();
-
-                // debugging:
-                // γ = -298039931075527522255844797466619404933784424563074793597744939*ϑ - 3127764656277006504647309206099010060132678986748243084380759488225833242
-
-                /*
-                let mut gamma = QuatAlgEl::new(
-                    "-3127764656277006504647309206099010060132678986748243084380759488225833242".big(),
-                    0.big(),
-                    "-298039931075527522255844797466619404933784424563074793597744939".big(),
-                    0.big(),
-                    1.big(),
-                    qa.clone(),
-                );
-                */
-
 
                 let gamma_quadratic = QuadraticOrderEl::new(
                     gamma.x.clone(),
@@ -660,16 +364,10 @@ macro_rules! define_klapoti {
                 let ell_product = EllipticProduct::new(&self.two_dim.curve, &self.two_dim.curve);
 
                 let e_start = valuation(Integer::from(norm_b.clone()) + Integer::from(norm_c.clone()), Integer::from(2)).0 as u32;
-                println!("e_start: {}", e_start);
-                println!("");
-
 
                 let fe = valuation_2 - 2 - e_start;
                 let fe = 2.big().pow(fe);
                 let fe_bytes = big_to_bytes(fe);
-
-                // let fe = 4; // TODO: hardcoded for debugging
-                // let fe_bytes = big_to_bytes(fe.big()); // TODO: hardcoded for debugging
 
                 let mut PP1 = self.two_dim.curve.mul(&norm_b_P, &fe_bytes, fe_bytes.len() * 8);
                 let mut PP2 = self.two_dim.curve.mul(&gammaP, &fe_bytes, fe_bytes.len() * 8);
@@ -706,6 +404,8 @@ macro_rules! define_klapoti {
                 println!("");
                 println!("");
                 println!("P: {}, {}", self.two_dim.P.X / self.two_dim.P.Z, self.two_dim.P.Y / self.two_dim.P.Z);
+                println!("");
+                println!("valuation_2: {}", valuation_2);
                 println!("");
                 println!("curve: {}", self.two_dim.curve);
                 println!("");
@@ -745,10 +445,6 @@ macro_rules! define_klapoti {
                     },
                 ];
 
-                println!("");
-                println!("key: {}, {}", e, e-1);
-                println!("");
-
                 if strategies.get(&(e-1)).is_none() {
                     panic!("No strategy for e - 1 = {}", e - 1);
                 }
@@ -763,42 +459,9 @@ macro_rules! define_klapoti {
                 );
 
                 println!("2: {:?}", second_part.elapsed());
+                let third_part = Instant::now();
 
-                println!("");
-                println!("e: {}", e);
-                println!("");
-
-                let three = Fp::ONE + Fp::ONE + Fp::ONE;
-                let four = Fq::ONE + Fq::ONE + Fq::ONE + Fq::ONE;
-                let twoh = Fq::new(&Fp::from_i64(256), &Fp::ZERO);
-
-                println!("");
-                println!("===============");
-                println!("");
-                println!("E1: {}", product.E1);
-                let A = product.E1.A.clone();
-                let a2 = A.clone() * A.clone();
-                println!("A: {}", a2);
-                println!("");
-                let num = (a2.clone() - Fq::new(&three, &Fp::ZERO)).clone();
-                let num = num.clone() * num.clone() * num; // (A^2 - 3)^3
-                let denom = a2 - four;
-                let jinv1 = twoh * num / denom;
-                println!("");
-                println!("E1 j-invariant: {}", jinv1);
-
-                println!("");
-                println!("E2: {}", product.E2);
-                let A = product.E2.A.clone();
-                let a2 = A.clone() * A.clone();
-                println!("A: {}", a2);
-                println!("");
-                let num = (a2.clone() - Fq::new(&three, &Fp::ZERO)).clone();
-                let num = num.clone() * num.clone() * num; // (A^2 - 3)^3
-                let denom = a2 - four;
-                let jinv2 = twoh * num / denom;
-                println!("");
-                println!("E2 j-invariant: {}", jinv2);
+                let distinguish_part = Instant::now();
 
                 let (z, ok1) = self.two_dim.curve.weil_pairing_2exp(valuation_2 as usize, &self.two_dim.P, &self.two_dim.Q);
                 assert_eq!(ok1, 0xFFFFFFFF);
@@ -809,13 +472,6 @@ macro_rules! define_klapoti {
                     let imP1 = vec![&points[0].P1, &points[0].P2];
                     let imQ1 = vec![&points[1].P1, &points[1].P2];
 
-                    // let imP2 = vec![&points[2].P1, &points[2].P2]; // TODO: the corresponding points were removed
-                    // let imQ2 = vec![&points[3].P1, &points[3].P2];
-
-                    println!("");
-                    println!("============ ev ==============");
-                    println!("");
-                    
                     for i in 0..2 {
                         let imP = &imP1[i];
                         let imQ = &imQ1[i];
@@ -824,31 +480,11 @@ macro_rules! define_klapoti {
                             curve = product.E2;
                         }
 
-                        println!("--------- 11");
-                        println!("imP1: {}, {}", imP.X / imP.Z, imP.Y / imP.Z);
-                        println!("");
-                        println!("imQ1: {}, {}", imQ.X / imQ.Z, imQ.Y / imQ.Z);
-                        println!("");
-                        println!("");
-
                         let (w, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &imP, &imQ);
-                        println!("ok: {:?}", ok);
-                        println!("");
-                        println!("z^Nb: {}", ztob);
-                        println!("");
-                        println!("w: {}", w);
-                        println!("");
+                        assert_eq!(ok, 0xFFFFFFFF);
                         let w_inv = w.invert();
-                        println!("w inv: {}", w_inv);
-                        println!("");
 
                         if ztob == w || ztob == w_inv {
-                            println!("Found match for ztob!");
-                            if i == 0 {
-                                // norm_b "is" curve 1
-                            } else {
-                                // norm_b "is" curve 2
-                            }
                             return (i, *imP.clone(), *imQ.clone());
                         }
                     }
@@ -863,29 +499,25 @@ macro_rules! define_klapoti {
                 }
 
                 let (w, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &imP, &imQ);
-                println!("ok 1: {:?}", ok);
                 if ok == 0 || w != ztob {
                     imQ.set_neg();
                 }
 
                 let norm_omega = self.two_dim.omega.norm();
-                println!("norm_omega: {}", norm_omega);
-
                 let bytes1 = big_to_bytes(norm_b * norm_omega.clone());
                 let ztow = z.pow(&bytes1, bytes1.len() * 8);
-                println!("ztow: {}", ztow);
 
                 let im_omegaP12 = vec![&points[2].P1, &points[2].P2];
                 let im_omegaQ12 = vec![&points[3].P1, &points[3].P2];
-
                 let im_omegaP = im_omegaP12[ind];
                 let im_omegaQ = im_omegaQ12[ind];
 
                 let (c2, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &im_omegaP, &im_omegaQ);
-                println!("ok 3: {:?}", ok);
                 if ok == 0 || c2 != ztow {
                     imQ.set_neg();
                 }
+
+                println!("distinguish: {:?}", distinguish_part.elapsed());
                 
 
                 println!("");
@@ -903,7 +535,15 @@ macro_rules! define_klapoti {
                 println!("curve: {}", curve);
                 println!("");
 
-                PubKey::new(curve, imP, imQ, *im_omegaP, *im_omegaQ, valuation_2, cofactor)
+                let pub_key = PubKey::new(curve, imP, imQ, *im_omegaP, *im_omegaQ, valuation_2, cofactor);
+
+                println!("");
+                println!("");
+                println!("");
+                println!("3: {:?}", third_part.elapsed());
+                println!("");
+
+                pub_key
             }
         }
     };
