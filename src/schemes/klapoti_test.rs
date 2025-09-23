@@ -288,8 +288,7 @@ pub fn params64() {
     let klapoti = ec64::Klapoti::new(quadratic_order, two_dim);
 
     let ideal = klapoti.secret();
-
-    klapoti.act(ideal, 39, strategies, valuation_2, cofactor);
+    klapoti.act(ideal, 75, strategies, valuation_2, cofactor);
 }
 
 pub fn params128() {
@@ -446,8 +445,7 @@ pub fn params128() {
     let klapoti = ec128::Klapoti::new(quadratic_order, two_dim);
 
     let ideal = klapoti.secret();
-
-    klapoti.act(ideal, 36, strategies, valuation_2, cofactor);
+    klapoti.act(ideal, 80, strategies, valuation_2, cofactor);
 }
 
 pub fn params256() {
@@ -657,8 +655,7 @@ pub fn params256() {
     let klapoti = ec256::Klapoti::new(quadratic_order, two_dim);
 
     let ideal = klapoti.secret();
-
-    klapoti.act(ideal, 36, strategies, valuation_2, cofactor);
+    klapoti.act(ideal, 180, strategies, valuation_2, cofactor);
 }
 
 pub fn params512() {
@@ -1842,7 +1839,7 @@ pub fn params1536() {
         ],
     );
 
-    klapoti.act(ideal, 1000, strategies, valuation_2, cofactor);
+    klapoti.act(ideal, 850, strategies, valuation_2, cofactor);
 }
 
 pub fn params2048() {
