@@ -1,12 +1,12 @@
 use std::mem;
 
+use gmp::mpz_t;
 use gmp_mpfr_sys::gmp::{self, mpz_limbs_read, mpz_size};
 use num::BigUint;
 use num_bigint::{BigInt, RandBigInt, Sign};
 use num_prime::RandPrime;
 use num_traits::{One, Pow, Zero};
 use rug::{integer::Order, ops::DivRounding, Integer};
-use gmp::mpz_t;
 
 use crate::{
     error::{NotCoprime, NotQuadraticResidueError},
@@ -167,7 +167,8 @@ pub fn bytes_from_str(a: &str) -> Vec<u8> {
 }
 
 pub fn bits_from_big(s: Integer) -> Vec<u8> {
-    let mut n_bits = s.to_digits::<u8>(Order::LsfLe)
+    let mut n_bits = s
+        .to_digits::<u8>(Order::LsfLe)
         .iter()
         .flat_map(|byte| (0..8).map(move |i| (byte >> i) & 1))
         .collect::<Vec<u8>>();
@@ -404,7 +405,7 @@ pub fn big_to_bytes(a: Integer) -> Vec<u8> {
     if digits.len() == 0 {
         digits.push(0);
     }
-    
+
     digits
 }
 

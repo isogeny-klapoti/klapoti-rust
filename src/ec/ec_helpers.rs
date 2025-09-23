@@ -24,7 +24,7 @@ macro_rules! define_ec_helpers {
                 let Q = curve.mul(&P, &bytes, bytes.len() * 8);
 
                 if Q.isinfinity() == 0x00000000 {
-                    return P
+                    return P;
                 }
             }
         }
@@ -49,11 +49,7 @@ macro_rules! define_ec_helpers {
             vs.reverse();
 
             // Discrete log function
-            fn dlog(
-                w: &Fq,
-                k: usize,
-                vs: &[Fq],
-            ) -> Integer {
+            fn dlog(w: &Fq, k: usize, vs: &[Fq]) -> Integer {
                 if k == 0 {
                     return 0.big();
                 }
@@ -62,7 +58,7 @@ macro_rules! define_ec_helpers {
 
                 let bytes = big_to_bytes(r.clone());
                 if vs[k].pow(&bytes, bytes.len() * 8).equals(w) != 0xFFFFFFFF {
-                    return r + 2.big().pow(k as u32 - 1)
+                    return r + 2.big().pow(k as u32 - 1);
                 }
 
                 r

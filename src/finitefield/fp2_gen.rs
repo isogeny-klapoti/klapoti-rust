@@ -22,9 +22,9 @@ macro_rules! define_fp2_core {
         use num_bigint::{BigInt, Sign};
         use num_traits::{One, Zero};
         use rand_core::{CryptoRng, RngCore};
+        use std::cmp::Ordering;
         use std::fmt;
         use std::iter::Sum;
-        use std::cmp::Ordering;
 
         /// GF(p^2) implementation.
         #[derive(Clone, Copy, Debug)]

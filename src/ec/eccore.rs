@@ -18,12 +18,12 @@
 macro_rules! define_ec_core {
     () => {
         // use core::ops::Add;
+        use crate::ec::mp::{mp_shiftr, mp_sub, select_ct, select_ct_arr, swap_ct};
+        use crate::util::bits_from_big;
         use core::ops::Neg;
         use rand_core::{CryptoRng, RngCore};
-        use std::fmt;
         use rug::Integer;
-        use crate::util::bits_from_big;
-        use crate::ec::mp::{mp_sub, select_ct, select_ct_arr, swap_ct, mp_shiftr};
+        use std::fmt;
 
         /// Curve point.
         /// Points do not know which curve they are on! The caller must ensure
@@ -217,8 +217,8 @@ macro_rules! define_ec_core {
         /// (special case of a Montgomery curve).
         #[derive(Clone, Copy, Debug)]
         pub struct Curve {
-            pub A: Fq, // curve parameter
-            pub A24: Fq,   // (A+2)/4
+            pub A: Fq,   // curve parameter
+            pub A24: Fq, // (A+2)/4
             pub A24_num: Fq,
             pub A24_denom: Fq,
         }
@@ -613,12 +613,7 @@ macro_rules! define_ec_core {
             }
 
             #[inline(always)]
-            pub fn double_add(
-                &self,
-                P: &PointX,
-                Q: &PointX,
-                PQ: &PointX,
-            ) -> (PointX, PointX) {
+            pub fn double_add(&self, P: &PointX, Q: &PointX, PQ: &PointX) -> (PointX, PointX) {
                 let mut Sum = PointX::new_xz(&Fq::ZERO, &Fq::ZERO);
                 let mut Db = PointX::new_xz(&Fq::ZERO, &Fq::ZERO);
 
@@ -652,15 +647,9 @@ macro_rules! define_ec_core {
 
             // s*P + Q
             #[inline(always)]
-            pub fn ladder_3pt( 
-                &self,
-                P: &PointX,
-                Q: &PointX,
-                PQ: &PointX,
-                s: Integer,
-            ) -> PointX {
+            pub fn ladder_3pt(&self, P: &PointX, Q: &PointX, PQ: &PointX, s: Integer) -> PointX {
                 let n_bits = bits_from_big(s);
-                
+
                 let mut R0 = *P;
                 let mut R1 = *Q;
                 let mut R2 = *PQ;
@@ -677,7 +666,7 @@ macro_rules! define_ec_core {
                 }
                 self.xadd(&R2.X, &R2.Z, &R0.X, &R0.Z, &mut R1.X, &mut R1.Z);
 
-                R1 
+                R1
             }
 
             /// P3 <- n*P
@@ -867,7 +856,7 @@ macro_rules! define_ec_core {
             fn select_point(self, P: &Point, Q: &Point, ctl: u64) -> Point {
                 let mut S = Point::INFINITY;
                 let ctl32 = ctl as u32;
-                
+
                 S.X = Fq::select(&P.X, &Q.X, ctl32);
                 S.Y = Fq::select(&P.Y, &Q.Y, ctl32);
                 S.Z = Fq::select(&P.Z, &Q.Z, ctl32);
@@ -901,7 +890,7 @@ macro_rules! define_ec_core {
                 let mut bitl0 = l[0] & 1;
                 let maskk = 0u64.wrapping_sub(bitk0); // Parity masks
                 let maskl = 0u64.wrapping_sub(bitl0);
-            
+
                 sigma[0] = bitk0 ^ 1; // 1 if k is even, 0 if k is odd.
                 sigma[1] = bitl0 ^ 1;
 
@@ -910,14 +899,14 @@ macro_rules! define_ec_core {
 
                 // TODO:
                 const NWORDS_ORDER: usize = 4;
-            
+
                 sigma[0] &= mevens;
                 sigma[1] = (sigma[1] & mevens) | (1 & !mevens);
-            
+
                 // Convert even scalars to odd
                 let mut one = [0u64; NWORDS_ORDER];
                 one[0] = 1;
-            
+
                 let mut k_t = k.to_vec();
                 let mut l_t = l.to_vec();
 
@@ -926,28 +915,36 @@ macro_rules! define_ec_core {
 
                 let k_t_c = k_t.clone();
                 let l_t_c = l_t.clone();
- 
+
                 select_ct_arr(&mut k_t, &k_t_c, k, maskk, NWORDS_ORDER);
                 select_ct_arr(&mut l_t, &l_t_c, l, maskl, NWORDS_ORDER);
 
                 const BITS: usize = 256;
 
                 let mut r = [0u64; 2 * BITS];
-                
+
                 // Scalar recoding
                 for i in 0..BITS {
                     let maskk = 0u64.wrapping_sub(sigma[0] ^ pre_sigma);
-                    swap_ct(&mut k_t, &mut l_t, maskk, NWORDS_ORDER); 
+                    swap_ct(&mut k_t, &mut l_t, maskk, NWORDS_ORDER);
 
-                    let bs1_ip1 = if i == BITS - 1 { 0 } else { mp_shiftr(&mut k_t, 1, NWORDS_ORDER) };
-                    let bs2_ip1 = if i == BITS - 1 { 0 } else { mp_shiftr(&mut l_t, 1, NWORDS_ORDER) };
-            
+                    let bs1_ip1 = if i == BITS - 1 {
+                        0
+                    } else {
+                        mp_shiftr(&mut k_t, 1, NWORDS_ORDER)
+                    };
+                    let bs2_ip1 = if i == BITS - 1 {
+                        0
+                    } else {
+                        mp_shiftr(&mut l_t, 1, NWORDS_ORDER)
+                    };
+
                     let bs1_i = k_t[0] & 1;
                     let bs2_i = l_t[0] & 1;
 
                     r[2 * i] = bs1_i ^ bs1_ip1;
                     r[2 * i + 1] = bs2_i ^ bs2_ip1;
-            
+
                     pre_sigma = sigma[0];
                     let maskk = 0u64.wrapping_sub(r[2 * i + 1]);
 
@@ -955,7 +952,7 @@ macro_rules! define_ec_core {
                     sigma[1] = select_ct(sigma[1], sigma[0], maskk);
                     sigma[0] = temp;
                 }
-                
+
                 // Point initialization
                 let maskk = 0u64.wrapping_sub(sigma[0]);
 
@@ -983,7 +980,7 @@ macro_rules! define_ec_core {
                     // let apply = i <= f + 2 + (BITS - TORSION_PLUS_EVEN_POWER);
                     // TODO
                     let apply = i <= 2 + BITS;
-            
+
                     let h = r[2 * i] + r[2 * i + 1];
                     let maskk = 0u64.wrapping_sub(h & 1);
 
@@ -992,18 +989,18 @@ macro_rules! define_ec_core {
                     }
 
                     let maskk = 0u64.wrapping_sub(h >> 1);
-            
+
                     if apply {
                         T0 = self.select_point(&T0, &R2, maskk);
                         self.xdbl(&mut T0.X, &mut T0.Z);
                     }
-            
+
                     let maskk = 0u64.wrapping_sub(r[2 * i + 1]);
                     if apply {
                         T1 = self.select_point(&R0, &R1, maskk);
                         T2 = self.select_point(&R1, &R2, maskk);
                     }
-            
+
                     self.swap_points(&mut diff1a, &mut diff1b, maskk);
 
                     if apply {
@@ -1014,17 +1011,17 @@ macro_rules! define_ec_core {
                         T2 = R2.clone(); // TODO
                         R2 = R2_old; // TODO
                     }
-            
+
                     let maskk = 0u64.wrapping_sub(h & 1);
                     self.swap_points(&mut diff2a, &mut diff2b, maskk);
-            
+
                     R0 = T0;
                     R1 = T1;
                     R2 = T2;
                 }
 
                 let mut S = self.select_point(&R0, &R1, mevens);
-            
+
                 let maskk = 0u64.wrapping_sub(bitk0 & bitl0);
                 S = self.select_point(&S, &R2, maskk);
 
@@ -1372,7 +1369,7 @@ macro_rules! define_ec_core {
                 w.set_cond(&Fq::ONE, set1);
                 w.set_condneg(set1 & neg1);
                 (w, ok)
-            } 
+            }
 
             /// Compute the isomorphism constants between two Montgomery curves.
             pub fn ec_isomorphism(self, to_A: Fq) -> ECIsomorphism {
@@ -1393,7 +1390,7 @@ macro_rules! define_ec_core {
                 // z = z * to_A - x * self.A;
 
                 x.set_mul3();
-                ECIsomorphism {Nx: x, Nz: z, D: d}
+                ECIsomorphism { Nx: x, Nz: z, D: d }
             }
 
             // TODO: self not needed
@@ -1439,10 +1436,9 @@ macro_rules! define_ec_core {
                 let z1 = (t0 + t1) / (foo.mul2());
                 let z2 = (t0 - t1) / (foo.mul2());
 
-
                 if z0 > z1 {
                     z0 = z1;
-                } 
+                }
                 if z0 > z2 {
                     z0 = z2;
                 }
@@ -1465,11 +1461,13 @@ macro_rules! define_ec_core {
             }
         }
 
-        
-
         impl fmt::Display for Curve {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "Montgomery Curve with coefficient: {}, A24: {}", self.A, self.A24)
+                write!(
+                    f,
+                    "Montgomery Curve with coefficient: {}, A24: {}",
+                    self.A, self.A24
+                )
             }
         }
 
@@ -1726,7 +1724,7 @@ macro_rules! define_ec_core {
         }
 
         /// Weil pairing
-        
+
         // Context for a pairing computation. We are computing f_P(A_Q)
         // with A_Q = <Q+R2> - <R2>, and f_P being the rational function
         // of divisor n*<P+R1> - n*<R1>.
@@ -1766,9 +1764,7 @@ macro_rules! define_ec_core {
             xp_A: Fq,
             vn: Fq,
             vd: Fq,
-        } 
-        
-        
+        }
     };
 } // End of macro: define_ec_core
 

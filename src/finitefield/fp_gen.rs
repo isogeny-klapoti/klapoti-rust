@@ -53,8 +53,8 @@ macro_rules! define_fp_core {
         use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
         use num_bigint::{BigInt, Sign};
         use rand_core::{CryptoRng, RngCore};
-        use std::fmt;
         use std::cmp::Ordering;
+        use std::fmt;
 
         /// A finite field element. Contents are opaque.
         /// All functions are constant-time.

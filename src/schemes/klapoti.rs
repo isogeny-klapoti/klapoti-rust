@@ -9,9 +9,9 @@ macro_rules! define_klapoti {
         use crate::quaternion::quaternion_ideal::QuaternionIdeal;
         use crate::quaternion::quaternion_order::QuaternionOrder;
         use crate::util::{big_to_bytes, valuation};
-        use std::time::Instant;
         use num_traits::Pow;
         use std::collections::HashMap;
+        use std::time::Instant;
 
         /// Let O be an imaginary quadratic order with discriminant D and odd conductor f.
         /// Given an O-oriented supersingular elliptic curve (E, iota), take any omega from O such that O = Z[omega]
@@ -71,7 +71,6 @@ macro_rules! define_klapoti {
                 valuation_2: u32,
                 cofactor: u32,
             ) -> Self {
-
                 let (new_curve, isom) = curve.normalize();
                 new_curve.ec_iso_eval(&mut P, &isom);
                 new_curve.ec_iso_eval(&mut Q, &isom);
@@ -92,7 +91,7 @@ macro_rules! define_klapoti {
 
                 let bytes = big_to_bytes(2.big().pow(valuation_2 - 1));
                 let R = generate_random_fq(&new_curve, (valuation_2 - 1).big(), cofactor.big());
-                
+
                 let mut S;
                 loop {
                     S = generate_random_fq(&new_curve, (valuation_2 - 1).big(), cofactor.big());
@@ -100,11 +99,12 @@ macro_rules! define_klapoti {
                     assert_eq!(ok, 0xFFFFFFFF);
                     let wto = w.pow(&bytes, bytes.len() * 8);
 
-                    if wto.equals(&Fq::ONE) == 0 { // wto != 1
+                    if wto.equals(&Fq::ONE) == 0 {
+                        // wto != 1
                         break;
-                    } 
+                    }
                 }
-                
+
                 let dlog = prepare_dlog_solver(&new_curve, &P, &Q, valuation_2 as usize);
                 let rdlog = dlog(&R);
                 let sdlog = dlog(&S);
@@ -120,7 +120,7 @@ macro_rules! define_klapoti {
                 mat[(1, 0)] = c.clone();
                 mat[(1, 1)] = d.clone();
 
-                let m =  2.big().pow(valuation_2);
+                let m = 2.big().pow(valuation_2);
                 let det = (a.clone() * d.clone() - b.clone() * c.clone()).modulo(&m);
                 let det_inv = det.invert(&m).unwrap();
                 let m00 = (d * det_inv.clone()).modulo(&m);
@@ -133,7 +133,7 @@ macro_rules! define_klapoti {
                 mat_inv[(0, 1)] = m01;
                 mat_inv[(1, 0)] = m10;
                 mat_inv[(1, 1)] = m11;
-                
+
                 let omega_rdlog = dlog(&omegaP);
                 let omega_dlog = dlog(&omegaQ);
 
@@ -363,17 +363,33 @@ macro_rules! define_klapoti {
 
                 let ell_product = EllipticProduct::new(&self.two_dim.curve, &self.two_dim.curve);
 
-                let e_start = valuation(Integer::from(norm_b.clone()) + Integer::from(norm_c.clone()), Integer::from(2)).0 as u32;
+                let e_start = valuation(
+                    Integer::from(norm_b.clone()) + Integer::from(norm_c.clone()),
+                    Integer::from(2),
+                )
+                .0 as u32;
 
                 let fe = valuation_2 - 2 - e_start;
                 let fe = 2.big().pow(fe);
                 let fe_bytes = big_to_bytes(fe);
 
-                let mut PP1 = self.two_dim.curve.mul(&norm_b_P, &fe_bytes, fe_bytes.len() * 8);
-                let mut PP2 = self.two_dim.curve.mul(&gammaP, &fe_bytes, fe_bytes.len() * 8);
+                let mut PP1 = self
+                    .two_dim
+                    .curve
+                    .mul(&norm_b_P, &fe_bytes, fe_bytes.len() * 8);
+                let mut PP2 = self
+                    .two_dim
+                    .curve
+                    .mul(&gammaP, &fe_bytes, fe_bytes.len() * 8);
 
-                let mut QQ1 = self.two_dim.curve.mul(&norm_b_Q, &fe_bytes, fe_bytes.len() * 8);
-                let mut QQ2 = self.two_dim.curve.mul(&gammaQ, &fe_bytes, fe_bytes.len() * 8);
+                let mut QQ1 = self
+                    .two_dim
+                    .curve
+                    .mul(&norm_b_Q, &fe_bytes, fe_bytes.len() * 8);
+                let mut QQ2 = self
+                    .two_dim
+                    .curve
+                    .mul(&gammaQ, &fe_bytes, fe_bytes.len() * 8);
 
                 fn h2(curve: &Curve, T1: &Point, T2: &Point) -> (Point, Point) {
                     (curve.add(&T1, &T2), curve.sub(&T1, &T2))
@@ -382,7 +398,7 @@ macro_rules! define_klapoti {
                 let mut e = e_start;
                 loop {
                     let mut T = self.two_dim.curve.sub(&PP1, &PP2);
-                    for _ in 0..e+1 {
+                    for _ in 0..e + 1 {
                         T = self.two_dim.curve.double(&T);
                     }
                     // T is now 2^(e+1) * (PP1 - PP2)
@@ -403,7 +419,11 @@ macro_rules! define_klapoti {
 
                 println!("");
                 println!("");
-                println!("P: {}, {}", self.two_dim.P.X / self.two_dim.P.Z, self.two_dim.P.Y / self.two_dim.P.Z);
+                println!(
+                    "P: {}, {}",
+                    self.two_dim.P.X / self.two_dim.P.Z,
+                    self.two_dim.P.Y / self.two_dim.P.Z
+                );
                 println!("");
                 println!("valuation_2: {}", valuation_2);
                 println!("");
@@ -413,7 +433,7 @@ macro_rules! define_klapoti {
                 println!("order_pp1: {}", order_pp1);
                 println!("");
 
-                let pre = |T1: &Point, T2: &Point| -> (Point, Point){
+                let pre = |T1: &Point, T2: &Point| -> (Point, Point) {
                     let mut K1 = T1.clone();
                     let mut K2 = T2.clone();
                     for _ in 0..(e_start - e) {
@@ -421,7 +441,7 @@ macro_rules! define_klapoti {
                         K1 = new_T1;
                         K2 = new_T2;
                     }
-                
+
                     (K1, K2)
                 };
 
@@ -445,17 +465,17 @@ macro_rules! define_klapoti {
                     },
                 ];
 
-                if strategies.get(&(e-1)).is_none() {
+                if strategies.get(&(e - 1)).is_none() {
                     panic!("No strategy for e - 1 = {}", e - 1);
                 }
-                
+
                 let (product, points) = product_isogeny(
                     &ell_product,
                     &P1P2,
                     &Q1Q2,
                     &image_points,
                     e as usize,
-                    &strategies[&(e-1)],
+                    &strategies[&(e - 1)],
                 );
 
                 println!("2: {:?}", second_part.elapsed());
@@ -463,7 +483,11 @@ macro_rules! define_klapoti {
 
                 let distinguish_part = Instant::now();
 
-                let (z, ok1) = self.two_dim.curve.weil_pairing_2exp(valuation_2 as usize, &self.two_dim.P, &self.two_dim.Q);
+                let (z, ok1) = self.two_dim.curve.weil_pairing_2exp(
+                    valuation_2 as usize,
+                    &self.two_dim.P,
+                    &self.two_dim.Q,
+                );
                 assert_eq!(ok1, 0xFFFFFFFF);
 
                 let ztob = z.pow(&nb_bytes, nb_bytes.len() * 8);
@@ -512,13 +536,13 @@ macro_rules! define_klapoti {
                 let im_omegaP = im_omegaP12[ind];
                 let im_omegaQ = im_omegaQ12[ind];
 
-                let (c2, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &im_omegaP, &im_omegaQ);
+                let (c2, ok) =
+                    curve.weil_pairing_2exp(valuation_2 as usize, &im_omegaP, &im_omegaQ);
                 if ok == 0 || c2 != ztow {
                     imQ.set_neg();
                 }
 
                 println!("distinguish: {:?}", distinguish_part.elapsed());
-                
 
                 println!("");
                 println!("???????????????? ============");
@@ -528,14 +552,30 @@ macro_rules! define_klapoti {
                 println!("imQ: {}, {}", imQ.X / imQ.Z, imQ.Y / imQ.Z);
                 println!("");
 
-                println!("im_omegaP: {}, {}", im_omegaP.X / im_omegaP.Z, im_omegaP.Y / im_omegaP.Z);
+                println!(
+                    "im_omegaP: {}, {}",
+                    im_omegaP.X / im_omegaP.Z,
+                    im_omegaP.Y / im_omegaP.Z
+                );
                 println!("");
-                println!("im_omegaQ: {}, {}", im_omegaQ.X / im_omegaQ.Z, im_omegaQ.Y / im_omegaQ.Z);
+                println!(
+                    "im_omegaQ: {}, {}",
+                    im_omegaQ.X / im_omegaQ.Z,
+                    im_omegaQ.Y / im_omegaQ.Z
+                );
                 println!("");
                 println!("curve: {}", curve);
                 println!("");
 
-                let pub_key = PubKey::new(curve, imP, imQ, *im_omegaP, *im_omegaQ, valuation_2, cofactor);
+                let pub_key = PubKey::new(
+                    curve,
+                    imP,
+                    imQ,
+                    *im_omegaP,
+                    *im_omegaQ,
+                    valuation_2,
+                    cofactor,
+                );
 
                 println!("");
                 println!("");
