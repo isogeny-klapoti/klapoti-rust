@@ -15,6 +15,7 @@ pub mod ec117 {
     use crate::util::Big;
     pub type Fp = crate::fields::Fp117::Fp;
     pub type Fq = crate::fields::Fp117Ext::Fp2;
+    crate::ec::ec_helpers::define_ec_helpers! {}
     crate::ec::eccore::define_ec_core! {}
     crate::theta::theta::define_theta_structure! {}
     crate::schemes::klapoti::define_klapoti! {}
@@ -25,6 +26,7 @@ pub mod ec214 {
     pub type Fp = crate::fields::Fp214::Fp;
     pub type Fq = crate::fields::Fp214Ext::Fp2;
     crate::ec::eccore::define_ec_core! {}
+    crate::ec::ec_helpers::define_ec_helpers! {}
     crate::theta::theta::define_theta_structure! {}
     crate::schemes::klapoti::define_klapoti! {}
 }
@@ -34,6 +36,7 @@ pub mod ec509 {
     pub type Fp = crate::fields::Fp509::Fp;
     pub type Fq = crate::fields::Fp509Ext::Fp2;
     crate::ec::eccore::define_ec_core! {}
+    crate::ec::ec_helpers::define_ec_helpers! {}
     crate::theta::theta::define_theta_structure! {}
     crate::schemes::klapoti::define_klapoti! {}
 }
@@ -43,6 +46,7 @@ pub mod ec64 {
     pub type Fp = crate::fields::Fp64::Fp;
     pub type Fq = crate::fields::Fp64Ext::Fp2;
     crate::ec::eccore::define_ec_core! {}
+    crate::ec::ec_helpers::define_ec_helpers! {}
     crate::theta::theta::define_theta_structure! {}
     crate::schemes::klapoti::define_klapoti! {}
 }
@@ -52,6 +56,7 @@ pub mod ec128 {
     pub type Fp = crate::fields::Fp128::Fp;
     pub type Fq = crate::fields::Fp128Ext::Fp2;
     crate::ec::eccore::define_ec_core! {}
+    crate::ec::ec_helpers::define_ec_helpers! {}
     crate::theta::theta::define_theta_structure! {}
     crate::schemes::klapoti::define_klapoti! {}
 }
@@ -61,6 +66,7 @@ pub mod ec256 {
     pub type Fp = crate::fields::Fp256::Fp;
     pub type Fq = crate::fields::Fp256Ext::Fp2;
     crate::ec::eccore::define_ec_core! {}
+    crate::ec::ec_helpers::define_ec_helpers! {}
     crate::theta::theta::define_theta_structure! {}
     crate::schemes::klapoti::define_klapoti! {}
 }
@@ -69,6 +75,7 @@ pub mod ec512 {
     use crate::util::Big;
     pub type Fp = crate::fields::Fp512::Fp;
     pub type Fq = crate::fields::Fp512Ext::Fp2;
+    crate::ec::ec_helpers::define_ec_helpers! {}
     crate::ec::eccore::define_ec_core! {}
     crate::theta::theta::define_theta_structure! {}
     crate::schemes::klapoti::define_klapoti! {}
@@ -78,6 +85,7 @@ pub mod ec768 {
     use crate::util::Big;
     pub type Fp = crate::fields::Fp768::Fp;
     pub type Fq = crate::fields::Fp768Ext::Fp2;
+    crate::ec::ec_helpers::define_ec_helpers! {}
     crate::ec::eccore::define_ec_core! {}
     crate::theta::theta::define_theta_structure! {}
     crate::schemes::klapoti::define_klapoti! {}
@@ -88,6 +96,7 @@ pub mod ec1024 {
     pub type Fp = crate::fields::Fp1024::Fp;
     pub type Fq = crate::fields::Fp1024Ext::Fp2;
     crate::ec::eccore::define_ec_core! {}
+    crate::ec::ec_helpers::define_ec_helpers! {}
     crate::theta::theta::define_theta_structure! {}
     crate::schemes::klapoti::define_klapoti! {}
 }
@@ -97,6 +106,7 @@ pub mod ec1536 {
     pub type Fp = crate::fields::Fp1536::Fp;
     pub type Fq = crate::fields::Fp1536Ext::Fp2;
     crate::ec::eccore::define_ec_core! {}
+    crate::ec::ec_helpers::define_ec_helpers! {}
     crate::theta::theta::define_theta_structure! {}
     crate::schemes::klapoti::define_klapoti! {}
 }
@@ -106,6 +116,7 @@ pub mod ec2048 {
     pub type Fp = crate::fields::Fp2048::Fp;
     pub type Fq = crate::fields::Fp2048Ext::Fp2;
     crate::ec::eccore::define_ec_core! {}
+    crate::ec::ec_helpers::define_ec_helpers! {}
     crate::theta::theta::define_theta_structure! {}
     crate::schemes::klapoti::define_klapoti! {}
 }

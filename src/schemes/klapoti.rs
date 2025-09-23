@@ -8,7 +8,9 @@ macro_rules! define_klapoti {
         use crate::quaternion::quaternion_algebra::{QuatAlg, QuatAlgEl};
         use crate::quaternion::quaternion_ideal::QuaternionIdeal;
         use crate::quaternion::quaternion_order::QuaternionOrder;
-        use crate::util::big_to_bytes;
+        use crate::util::{big_to_bytes, valuation};
+        use num_traits::Pow;
+        use std::collections::HashMap;
         use std::time::Instant;
 
         /// Let O be an imaginary quadratic order with discriminant D and odd conductor f.
@@ -52,21 +54,115 @@ macro_rules! define_klapoti {
 
         #[derive(Clone, Debug)]
         pub struct PubKey {
-            pub product: EllipticProduct,
-            pub imagePQ: CouplePoint,
-            pub imageOmegaPQ: CouplePoint,
+            pub curve: Curve,
+            pub P: Point,
+            pub Q: Point,
+            pub omegaP: Point,
+            pub omegaQ: Point,
         }
 
         impl PubKey {
             pub fn new(
-                product: EllipticProduct,
-                imagePQ: CouplePoint,
-                imageOmegaPQ: CouplePoint,
+                curve: Curve,
+                mut P: Point,
+                mut Q: Point,
+                mut omegaP: Point,
+                mut omegaQ: Point,
+                valuation_2: u32,
+                cofactor: u32,
             ) -> Self {
+                let (new_curve, isom) = curve.normalize();
+                new_curve.ec_iso_eval(&mut P, &isom);
+                new_curve.ec_iso_eval(&mut Q, &isom);
+                new_curve.ec_iso_eval(&mut omegaP, &isom);
+                new_curve.ec_iso_eval(&mut omegaQ, &isom);
+
+                let Px = PointX::new_xz(&P.X, &P.Z);
+                let (P, _) = new_curve.complete_pointX(&Px);
+
+                let Qx = PointX::new_xz(&Q.X, &Q.Z);
+                let (Q, _) = new_curve.complete_pointX(&Qx);
+
+                let omegaPx = PointX::new_xz(&omegaP.X, &omegaP.Z);
+                let (omegaP, _) = new_curve.complete_pointX(&omegaPx);
+
+                let omegaQx = PointX::new_xz(&omegaQ.X, &omegaQ.Z);
+                let (omegaQ, _) = new_curve.complete_pointX(&omegaQx);
+
+                let bytes = big_to_bytes(2.big().pow(valuation_2 - 1));
+                let R = generate_random_fq(&new_curve, (valuation_2 - 1).big(), cofactor.big());
+
+                let mut S;
+                loop {
+                    S = generate_random_fq(&new_curve, (valuation_2 - 1).big(), cofactor.big());
+                    let (w, ok) = new_curve.weil_pairing_2exp(valuation_2 as usize, &R, &S);
+                    assert_eq!(ok, 0xFFFFFFFF);
+                    let wto = w.pow(&bytes, bytes.len() * 8);
+
+                    if wto.equals(&Fq::ONE) == 0 {
+                        // wto != 1
+                        break;
+                    }
+                }
+
+                let dlog = prepare_dlog_solver(&new_curve, &P, &Q, valuation_2 as usize);
+                let rdlog = dlog(&R);
+                let sdlog = dlog(&S);
+
+                let a = rdlog.0.clone();
+                let b = rdlog.1.clone();
+                let c = sdlog.0.clone();
+                let d = sdlog.1.clone();
+
+                let mut mat = Matrix::<Integer>::zeros(4, 4);
+                mat[(0, 0)] = a.clone();
+                mat[(0, 1)] = b.clone();
+                mat[(1, 0)] = c.clone();
+                mat[(1, 1)] = d.clone();
+
+                let m = 2.big().pow(valuation_2);
+                let det = (a.clone() * d.clone() - b.clone() * c.clone()).modulo(&m);
+                let det_inv = det.invert(&m).unwrap();
+                let m00 = (d * det_inv.clone()).modulo(&m);
+                let m01 = ((-b).modulo(&m) * det_inv.clone()).modulo(&m);
+                let m10 = ((-c).modulo(&m) * det_inv.clone()).modulo(&m);
+                let m11 = (a * det_inv).modulo(&m);
+
+                let mut mat_inv = Matrix::<Integer>::zeros(4, 4);
+                mat_inv[(0, 0)] = m00;
+                mat_inv[(0, 1)] = m01;
+                mat_inv[(1, 0)] = m10;
+                mat_inv[(1, 1)] = m11;
+
+                let omega_rdlog = dlog(&omegaP);
+                let omega_dlog = dlog(&omegaQ);
+
+                let mut mat_om = Matrix::<Integer>::zeros(4, 4);
+                mat_om[(0, 0)] = omega_rdlog.0.clone();
+                mat_om[(0, 1)] = omega_rdlog.1.clone();
+                mat_om[(1, 0)] = omega_dlog.0.clone();
+                mat_om[(1, 1)] = omega_dlog.1.clone();
+
+                let omega_RS = mat * mat_om * mat_inv;
+
+                let mut bytes = big_to_bytes(omega_RS[(0, 0)].clone());
+                let mut T1 = new_curve.mul(&R, &bytes, bytes.len() * 8);
+                bytes = big_to_bytes(omega_RS[(0, 1)].clone());
+                let mut T2 = new_curve.mul(&S, &bytes, bytes.len() * 8);
+                let omegaR = new_curve.add(&T1, &T2);
+
+                let mut bytes = big_to_bytes(omega_RS[(1, 0)].clone());
+                T1 = new_curve.mul(&R, &bytes, bytes.len() * 8);
+                bytes = big_to_bytes(omega_RS[(1, 1)].clone());
+                T2 = new_curve.mul(&S, &bytes, bytes.len() * 8);
+                let omegaS = new_curve.add(&T1, &T2);
+
                 Self {
-                    product,
-                    imagePQ,
-                    imageOmegaPQ,
+                    curve: new_curve,
+                    P: R,
+                    Q: S,
+                    omegaP: omegaR,
+                    omegaQ: omegaS,
                 }
             }
         }
@@ -76,6 +172,18 @@ macro_rules! define_klapoti {
         pub struct Klapoti {
             pub quadratic_order: QuadraticOrder,
             pub two_dim: TwoDim,
+        }
+
+        // TODO: remove
+        fn point_order_2e(E: Curve, P: Point, e2: u32) -> u32 {
+            let mut T = P.clone();
+            for i in 1..=e2 {
+                T = E.double(&T);
+                if T.isinfinity() == 0xFFFFFFFF {
+                    return i; // 2^i
+                }
+            }
+            0 // Not found, not 2^k order
         }
 
         impl Klapoti {
@@ -94,14 +202,14 @@ macro_rules! define_klapoti {
                 &self,
                 ideal: QuadraticIdeal,
                 klpt_start_value: u32,
-                strategy: Vec<usize>,
+                strategies: HashMap<u32, Vec<usize>>,
+                valuation_2: u32,
+                cofactor: u32, // p + 1 = 2^valuation_2 * cofactor
             ) -> PubKey {
                 let start = Instant::now();
 
                 let disc_abs = self.quadratic_order.order_disc_abs.clone();
                 let qa = QuatAlg::new(-disc_abs.clone());
-
-                let e2 = strategy.len() as u32 + 1;
 
                 let basis = Matrix::zeros(4, 4);
                 // We use a quadratic order O = Z[(1 + theta)/2].
@@ -139,14 +247,14 @@ macro_rules! define_klapoti {
                 let mut gen_eq = QuatAlgEl::zero(qa.clone());
                 let mut found = false;
                 loop {
-                    for k in klpt_start_value..=e2 {
+                    for k in klpt_start_value..=valuation_2 {
                         let ok;
                         (ok, gen_eq) = klpt(
                             quaternion_ideal.clone(),
                             qa.clone(),
                             quaternion_order.clone(),
                             k,
-                            e2,
+                            valuation_2 - 4, // - 2 - 2 because there is 2^2 factor in KLPT
                         );
                         if ok {
                             found = true;
@@ -183,8 +291,6 @@ macro_rules! define_klapoti {
                 );
                 gamma_c = gamma_c.normalize();
 
-                // TODO: divisions by 2 of gamma_b and gamma_c if needed
-
                 // The two ideals equivalent to the secret ideal `ideal` are then:
                 // b = ideal * gamma_b.conj() / norm(ideal)
                 // c = ideal * gamma_c.conj() / norm(ideal)
@@ -192,9 +298,12 @@ macro_rules! define_klapoti {
                 let norm_b = gamma_b.reduced_norm() / ideal_norm.clone();
                 let norm_b = norm_b.numer();
 
+                let norm_c = gamma_c.reduced_norm() / ideal_norm.clone();
+                let norm_c = norm_c.numer();
+
                 // The ideal b * c.conj() is principal. The generator is gamma_b.conjugate() * gamma_c / ideal.norm().
 
-                let mut gamma = (gamma_b.conjugate() * gamma_c) / ideal_norm;
+                let mut gamma = (gamma_b.conjugate() * gamma_c.clone()) / ideal_norm.clone();
                 gamma = gamma.normalize();
 
                 let gamma_quadratic = QuadraticOrderEl::new(
@@ -205,29 +314,41 @@ macro_rules! define_klapoti {
                 );
 
                 let (u, v) = gamma_quadratic.express_with_el(self.two_dim.omega.clone());
+                let u_bytes = big_to_bytes(u.clone());
+                let v_bytes = big_to_bytes(v.clone());
 
-                let u_bytes = big_to_bytes(u);
-                let v_bytes = big_to_bytes(v);
-
-                let u_P = self
+                let mut u_P = self
                     .two_dim
                     .curve
                     .mul(&self.two_dim.P, &u_bytes, u_bytes.len() * 8);
-                let u_gammaP =
+                if u < 0.big() {
+                    u_P.set_neg();
+                }
+
+                let mut v_omegaP =
                     self.two_dim
                         .curve
                         .mul(&self.two_dim.omegaP, &v_bytes, v_bytes.len() * 8);
-                let gammaP = self.two_dim.curve.add(&u_P, &u_gammaP);
+                if v < 0.big() {
+                    v_omegaP.set_neg();
+                }
+                let gammaP = self.two_dim.curve.add(&u_P, &v_omegaP);
 
-                let u_Q = self
+                let mut u_Q = self
                     .two_dim
                     .curve
                     .mul(&self.two_dim.Q, &u_bytes, u_bytes.len() * 8);
-                let u_gammaQ =
+                if u < 0.big() {
+                    u_Q.set_neg();
+                }
+                let mut v_omegaQ =
                     self.two_dim
                         .curve
                         .mul(&self.two_dim.omegaQ, &v_bytes, v_bytes.len() * 8);
-                let gammaQ = self.two_dim.curve.add(&u_Q, &u_gammaQ);
+                if v < 0.big() {
+                    v_omegaQ.set_neg();
+                }
+                let gammaQ = self.two_dim.curve.add(&u_Q, &v_omegaQ);
 
                 let nb_bytes = big_to_bytes(norm_b.clone());
 
@@ -242,26 +363,178 @@ macro_rules! define_klapoti {
 
                 let ell_product = EllipticProduct::new(&self.two_dim.curve, &self.two_dim.curve);
 
-                let P1P2 = CouplePoint::new(&norm_b_P, &gammaP);
-                let Q1Q2 = CouplePoint::new(&norm_b_Q, &gammaQ);
+                let e_start = valuation(
+                    Integer::from(norm_b.clone()) + Integer::from(norm_c.clone()),
+                    Integer::from(2),
+                )
+                .0 as u32;
 
+                let fe = valuation_2 - 2 - e_start;
+                let fe = 2.big().pow(fe);
+                let fe_bytes = big_to_bytes(fe);
+
+                let mut PP1 = self
+                    .two_dim
+                    .curve
+                    .mul(&norm_b_P, &fe_bytes, fe_bytes.len() * 8);
+                let mut PP2 = self
+                    .two_dim
+                    .curve
+                    .mul(&gammaP, &fe_bytes, fe_bytes.len() * 8);
+
+                let mut QQ1 = self
+                    .two_dim
+                    .curve
+                    .mul(&norm_b_Q, &fe_bytes, fe_bytes.len() * 8);
+                let mut QQ2 = self
+                    .two_dim
+                    .curve
+                    .mul(&gammaQ, &fe_bytes, fe_bytes.len() * 8);
+
+                fn h2(curve: &Curve, T1: &Point, T2: &Point) -> (Point, Point) {
+                    (curve.add(&T1, &T2), curve.sub(&T1, &T2))
+                }
+
+                let mut e = e_start;
+                loop {
+                    let mut T = self.two_dim.curve.sub(&PP1, &PP2);
+                    for _ in 0..e + 1 {
+                        T = self.two_dim.curve.double(&T);
+                    }
+                    // T is now 2^(e+1) * (PP1 - PP2)
+                    if T.isinfinity() == 0xFFFFFFFF {
+                        (PP1, PP2) = h2(&self.two_dim.curve, &PP1, &PP2);
+                        (QQ1, QQ2) = h2(&self.two_dim.curve, &QQ1, &QQ2);
+                        e -= 1;
+                    } else {
+                        break;
+                    }
+                }
+
+                let P1P2 = CouplePoint::new(&PP1, &PP2);
+                let Q1Q2 = CouplePoint::new(&QQ1, &QQ2);
+
+                let pre = |T1: &Point, T2: &Point| -> (Point, Point) {
+                    let mut K1 = T1.clone();
+                    let mut K2 = T2.clone();
+                    for _ in 0..(e_start - e) {
+                        let (new_T1, new_T2) = h2(&self.two_dim.curve, &K1, &K2);
+                        K1 = new_T1;
+                        K2 = new_T2;
+                    }
+
+                    (K1, K2)
+                };
+
+                let inf = Point::INFINITY;
                 let image_points = vec![
-                    CouplePoint::new(&self.two_dim.P, &self.two_dim.Q),
-                    CouplePoint::new(&self.two_dim.omegaP, &self.two_dim.omegaQ),
+                    {
+                        let (p1, p2) = pre(&self.two_dim.P, &inf);
+                        CouplePoint::new(&p1, &p2)
+                    },
+                    {
+                        let (p1, p2) = pre(&self.two_dim.Q, &inf);
+                        CouplePoint::new(&p1, &p2)
+                    },
+                    {
+                        let (p1, p2) = pre(&self.two_dim.omegaP, &inf);
+                        CouplePoint::new(&p1, &p2)
+                    },
+                    {
+                        let (p1, p2) = pre(&self.two_dim.omegaQ, &inf);
+                        CouplePoint::new(&p1, &p2)
+                    },
                 ];
+
+                if strategies.get(&(e - 1)).is_none() {
+                    panic!("No strategy for e - 1 = {}", e - 1);
+                }
 
                 let (product, points) = product_isogeny(
                     &ell_product,
                     &P1P2,
                     &Q1Q2,
                     &image_points,
-                    e2 as usize,
-                    &strategy,
+                    e as usize,
+                    &strategies[&(e - 1)],
                 );
 
                 println!("2: {:?}", second_part.elapsed());
+                let third_part = Instant::now();
 
-                PubKey::new(product, points[0], points[1])
+                let (z, ok1) = self.two_dim.curve.weil_pairing_2exp(
+                    valuation_2 as usize,
+                    &self.two_dim.P,
+                    &self.two_dim.Q,
+                );
+                assert_eq!(ok1, 0xFFFFFFFF);
+
+                let ztob = z.pow(&nb_bytes, nb_bytes.len() * 8);
+
+                let distinguish = || -> (usize, Point, Point) {
+                    let imP1 = vec![&points[0].P1, &points[0].P2];
+                    let imQ1 = vec![&points[1].P1, &points[1].P2];
+
+                    for i in 0..2 {
+                        let imP = &imP1[i];
+                        let imQ = &imQ1[i];
+                        let mut curve = product.E1;
+                        if i == 1 {
+                            curve = product.E2;
+                        }
+
+                        let (w, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &imP, &imQ);
+                        assert_eq!(ok, 0xFFFFFFFF);
+                        let w_inv = w.invert();
+
+                        if ztob == w || ztob == w_inv {
+                            return (i, *imP.clone(), *imQ.clone());
+                        }
+                    }
+                    return (2, Point::INFINITY, Point::INFINITY);
+                };
+
+                let (ind, imP, mut imQ) = distinguish();
+                assert!(ind != 2);
+                let mut curve = product.E1;
+                if ind == 1 {
+                    curve = product.E2;
+                }
+
+                let (w, ok) = curve.weil_pairing_2exp(valuation_2 as usize, &imP, &imQ);
+                if ok == 0 || w != ztob {
+                    imQ.set_neg();
+                }
+
+                let norm_omega = self.two_dim.omega.norm();
+                let bytes1 = big_to_bytes(norm_b * norm_omega.clone());
+                let ztow = z.pow(&bytes1, bytes1.len() * 8);
+
+                let im_omegaP12 = vec![&points[2].P1, &points[2].P2];
+                let im_omegaQ12 = vec![&points[3].P1, &points[3].P2];
+                let im_omegaP = im_omegaP12[ind];
+                let im_omegaQ = im_omegaQ12[ind];
+
+                let (c2, ok) =
+                    curve.weil_pairing_2exp(valuation_2 as usize, &im_omegaP, &im_omegaQ);
+                if ok == 0 || c2 != ztow {
+                    imQ.set_neg();
+                }
+
+                let pub_key = PubKey::new(
+                    curve,
+                    imP,
+                    imQ,
+                    *im_omegaP,
+                    *im_omegaQ,
+                    valuation_2,
+                    cofactor,
+                );
+
+                println!("3: {:?}", third_part.elapsed());
+                println!("");
+
+                pub_key
             }
         }
     };

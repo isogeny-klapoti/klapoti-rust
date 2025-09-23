@@ -53,6 +53,7 @@ macro_rules! define_fp_core {
         use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
         use num_bigint::{BigInt, Sign};
         use rand_core::{CryptoRng, RngCore};
+        use std::cmp::Ordering;
         use std::fmt;
 
         /// A finite field element. Contents are opaque.
@@ -1878,6 +1879,24 @@ macro_rules! define_fp_core {
         impl PartialEq for Fp {
             fn eq(&self, other: &Self) -> bool {
                 self.equals(other) == 0xFFFFFFFF
+            }
+        }
+
+        impl PartialOrd for Fp {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        impl Eq for Fp {}
+
+        impl Ord for Fp {
+            fn cmp(&self, other: &Self) -> Ordering {
+                // Compare using canonical encoding (little-endian, so reverse for lex order)
+                let a = self.encode();
+                let b = other.encode();
+                // For lexicographic order, compare from most significant byte
+                a.iter().rev().cmp(b.iter().rev())
             }
         }
     };

@@ -62,3 +62,8 @@ Or with print statements:
 ```
 cargo test --release -- --nocapture params512
 ```
+
+or
+```
+RUST_MIN_STACK=67108864 cargo test --release -- --nocapture params512
+```
