@@ -414,25 +414,6 @@ macro_rules! define_klapoti {
                 let P1P2 = CouplePoint::new(&PP1, &PP2);
                 let Q1Q2 = CouplePoint::new(&QQ1, &QQ2);
 
-                let order_foo = point_order_2e(self.two_dim.curve, self.two_dim.P, valuation_2);
-                let order_pp1 = point_order_2e(self.two_dim.curve, PP1, valuation_2);
-
-                println!("");
-                println!("");
-                println!(
-                    "P: {}, {}",
-                    self.two_dim.P.X / self.two_dim.P.Z,
-                    self.two_dim.P.Y / self.two_dim.P.Z
-                );
-                println!("");
-                println!("valuation_2: {}", valuation_2);
-                println!("");
-                println!("curve: {}", self.two_dim.curve);
-                println!("");
-                println!("order_foo: {}", order_foo);
-                println!("order_pp1: {}", order_pp1);
-                println!("");
-
                 let pre = |T1: &Point, T2: &Point| -> (Point, Point) {
                     let mut K1 = T1.clone();
                     let mut K2 = T2.clone();
@@ -480,8 +461,6 @@ macro_rules! define_klapoti {
 
                 println!("2: {:?}", second_part.elapsed());
                 let third_part = Instant::now();
-
-                let distinguish_part = Instant::now();
 
                 let (z, ok1) = self.two_dim.curve.weil_pairing_2exp(
                     valuation_2 as usize,
@@ -542,31 +521,6 @@ macro_rules! define_klapoti {
                     imQ.set_neg();
                 }
 
-                println!("distinguish: {:?}", distinguish_part.elapsed());
-
-                println!("");
-                println!("???????????????? ============");
-                println!("");
-                println!("imP: {}, {}", imP.X / imP.Z, imP.Y / imP.Z);
-                println!("");
-                println!("imQ: {}, {}", imQ.X / imQ.Z, imQ.Y / imQ.Z);
-                println!("");
-
-                println!(
-                    "im_omegaP: {}, {}",
-                    im_omegaP.X / im_omegaP.Z,
-                    im_omegaP.Y / im_omegaP.Z
-                );
-                println!("");
-                println!(
-                    "im_omegaQ: {}, {}",
-                    im_omegaQ.X / im_omegaQ.Z,
-                    im_omegaQ.Y / im_omegaQ.Z
-                );
-                println!("");
-                println!("curve: {}", curve);
-                println!("");
-
                 let pub_key = PubKey::new(
                     curve,
                     imP,
@@ -577,9 +531,6 @@ macro_rules! define_klapoti {
                     cofactor,
                 );
 
-                println!("");
-                println!("");
-                println!("");
                 println!("3: {:?}", third_part.elapsed());
                 println!("");
 
