@@ -521,6 +521,9 @@ macro_rules! define_klapoti {
                     imQ.set_neg();
                 }
 
+                println!("3: {:?}", third_part.elapsed());
+                let fourth_part = Instant::now();
+
                 let pub_key = PubKey::new(
                     curve,
                     imP,
@@ -531,7 +534,7 @@ macro_rules! define_klapoti {
                     cofactor,
                 );
 
-                println!("3: {:?}", third_part.elapsed());
+                println!("4: {:?}", fourth_part.elapsed());
                 println!("");
 
                 pub_key

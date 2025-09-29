@@ -45,23 +45,31 @@ macro_rules! define_ec_helpers {
                 vs.push(last.square());
             }
 
-            vs.push(Fq::ONE);
-            vs.reverse();
-
             // Discrete log function
-            fn dlog(w: &Fq, k: usize, vs: &[Fq]) -> Integer {
+            fn dlog(w: &Fq, k: usize, vs: &[Fq], k0: usize) -> Integer {
                 if k == 0 {
                     return 0.big();
                 }
-                let w2 = w.square();
-                let r = dlog(&w2, k - 1, vs);
-
-                let bytes = big_to_bytes(r.clone());
-                if vs[k].pow(&bytes, bytes.len() * 8).equals(w) != 0xFFFFFFFF {
-                    return r + 2.big().pow(k as u32 - 1);
+                if k == 1 {
+                    return if w.equals(&Fq::ONE) == 0xFFFFFFFF { 0.big() } else { 1.big() };
                 }
 
-                r
+                let m = (k + 1) >> 1;
+                let l = k - m;
+
+                let mut wm = w.clone();
+                for _ in 0..m {
+                    wm.set_square();
+                }
+                let y = dlog(&wm, l, vs, k0);
+
+                let ybytes = big_to_bytes(y.clone());
+                let mut vy = vs[k0-k].clone();
+                vy.set_pow_simple(&ybytes);
+                let wl = w / vy;
+                let z = dlog(&wl, m, vs, k0);
+
+                return y + 2.big().pow(l as u32) * z;
             }
 
             // The closure to solve for (a, b)
@@ -72,9 +80,12 @@ macro_rules! define_ec_helpers {
                 let (wb, ok) = E.weil_pairing_2exp(k0 as usize, &P, &T);
                 assert_eq!(ok, 0xFFFFFFFF);
 
-                let a = dlog(&wa, k0, &vs);
-                let b = dlog(&wb, k0, &vs);
-                // assert!(&(P * Scalar::from(a) + Q * Scalar::from(b)) == T);
+                let a = dlog(&wa, k0, &vs, k0);
+                let b = dlog(&wb, k0, &vs, k0);
+
+//                let abytes = big_to_bytes(a.clone());
+//                let bbytes = big_to_bytes(b.clone());
+//                assert!(E.add(&E.mul(&P, &abytes, 8*abytes.len()), &E.mul(&Q, &bbytes, 8*bbytes.len())).equals(T) == 0xFFFFFFFF);
 
                 (a, b)
             }
